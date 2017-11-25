@@ -56,7 +56,8 @@ class BasicLooper(object):
                 answers = self.oracle.answer_question(sess,
                                                       question=padded_questions,
                                                       seq_length=seq_length,
-                                                      game_data=game_data)
+                                                      game_data=game_data,
+                                                      tokenizer=tokenizer)
 
                 # Step 1.3: store the full dialogues
                 for i in range(self.batch_size):

@@ -1,20 +1,31 @@
 {
-  "inputs": {
-    "question": true,
-    "category": true,
-    "spatial": true,
-    "crop": false,
-    "image": false
-  },
+
+  "type" : "baseline",
+  "split_question" : true,
 
   "model": {
+
+    "inputs": {
+      "question": true,
+      "category": true,
+      "spatial": true,
+      "crop": false,
+      "image": true
+    },
+
     "question": {
       "no_LSTM_hiddens": 512,
-      "embedding_dim": 300
+      "embedding_dim": 300,
+      "glove" : true
     },
 
     "category": {
       "n_categories": 90,
+      "embedding_dim": 512
+    },
+
+    "spatial": {
+      "no_mlp_units": 90,
       "embedding_dim": 512
     },
 
@@ -23,26 +34,28 @@
     },
 
     "image": {
-      "image_input": "fc8",
-      "dim": [1000]
+      "image_input": "conv",
+      "dim": [14, 14, 2048]
     },
 
     "crop": {
       "image_input": "fc8",
       "dim": [1000],
       "scale" : 1.1
-    }
+    },
 
+    "dropout_keep_prob": 1.0
   },
 
   "optimizer": {
-    "no_epoch": 20,
+    "no_epoch": 12,
     "learning_rate": 1e-4,
     "batch_size": 64,
     "clip_val": 5
   },
 
   "status": ["success"],
+
   "seed": -1
 
 }

@@ -2,7 +2,6 @@ from __future__ import unicode_literals
 
 from guesswhat.data_provider.questioner_batchifier import QuestionerBatchifier
 from guesswhat.data_provider.oracle_batchifier import OracleBatchifier
-from guesswhat.data_provider.guesswhat_dataset import OracleDataset
 
 from generic.data_provider.iterator import Iterator
 from generic.tf_utils.evaluator import Evaluator
@@ -11,11 +10,10 @@ from guesswhat.data_provider.guesswhat_dataset import dump_samples_into_dataset
 
 def test_oracle(sess, testset, tokenizer, oracle, cpu_pool, batch_size, logger):
 
-    oracle_dataset = OracleDataset(testset)
     oracle_sources = oracle.get_sources(sess)
     oracle_evaluator = Evaluator(oracle_sources, oracle.scope_name, network=oracle, tokenizer=tokenizer)
     oracle_batchifier = OracleBatchifier(tokenizer, oracle_sources, status=('success',))
-    oracle_iterator = Iterator(oracle_dataset, pool=cpu_pool,
+    oracle_iterator = Iterator(testset, pool=cpu_pool,
                              batch_size=batch_size,
                              batchifier=oracle_batchifier)
     [oracle_loss, oracle_error] = oracle_evaluator.process(sess, oracle_iterator, [oracle.loss, oracle.error])
@@ -52,7 +50,7 @@ def test_model(sess, testset, tokenizer, oracle, guesser, qgen, cpu_pool, batch_
     test_qgen(sess, testset, tokenizer, qgen, cpu_pool, batch_size, logger)
 
 
-def compute_qgen_accuracy(sess, dataset, batchifier, evaluator, mode, tokenizer, save_path, cpu_pool, batch_size, store_games, dump_suffix):
+def compute_qgen_accuracy(sess, dataset, batchifier, evaluator, mode, tokenizer, save_path, cpu_pool, batch_size, store_games, dump_suffix, true_id):
 
     logger = logging.getLogger()
 
@@ -70,6 +68,7 @@ def compute_qgen_accuracy(sess, dataset, batchifier, evaluator, mode, tokenizer,
             dump_samples_into_dataset(generated_dialogues,
                                       save_path=save_path,
                                       tokenizer=tokenizer,
-                                      name=dump_suffix + "." + m)
+                                      name=dump_suffix + "." + m,
+                                      true_id=true_id)
 
         logger.info("Accuracy ({} - {}): {}".format(dataset.set, m, test_score))

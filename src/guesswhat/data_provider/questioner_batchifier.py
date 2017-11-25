@@ -7,12 +7,6 @@ from generic.data_provider.image_preprocessors import (resize_image, get_spatial
                                                          scaled_crop_and_pad)
 from generic.data_provider.nlp_utils import padder, padder_3d
 
-answer_dict = \
-    {'Yes': np.array([1, 0, 0], dtype=np.int32),
-    'No': np.array([0, 1, 0], dtype=np.int32),
-    'N/A': np.array([0, 0, 1], dtype=np.int32)
-    }
-
 
 class QuestionerBatchifier(AbstractBatchifier):
 
@@ -40,8 +34,8 @@ class QuestionerBatchifier(AbstractBatchifier):
             batch['raw'].append(game)
 
             # Flattened question answers
-            q_tokens = [self.tokenizer.apply(q) for q in game.questions]
-            a_tokens = [self.tokenizer.apply(a, is_answer=True) for a in game.answers]
+            q_tokens = [self.tokenizer.encode(q) for q in game.questions]
+            a_tokens = [self.tokenizer.encode(a, is_answer=True) for a in game.answers]
 
             tokens = [self.tokenizer.start_token]  # Add start token
             answer_indices = []
@@ -78,9 +72,9 @@ class QuestionerBatchifier(AbstractBatchifier):
             # image
             img = game.image.get_image()
             if img is not None:
-                if "images" not in batch:  # initialize an empty array for better memory consumption
-                    batch["images"] = np.zeros((batch_size,) + img.shape)
-                batch["images"][i] = img
+                if "image" not in batch:  # initialize an empty array for better memory consumption
+                    batch["image"] = np.zeros((batch_size,) + img.shape)
+                batch["image"][i] = img
 
 
         # Pad dialogue tokens tokens

@@ -11,12 +11,13 @@ from generic.tf_utils.optimizer import create_optimizer
 from generic.tf_utils.ckpt_loader import load_checkpoint, create_resnet_saver
 from generic.utils.config import load_config
 from generic.utils.file_handlers import pickle_dump
+from generic.utils.thread_pool import create_cpu_pool
 from generic.data_provider.image_loader import get_img_builder
 
 from guesswhat.data_provider.guesswhat_dataset import Dataset
 from guesswhat.data_provider.questioner_batchifier import QuestionerBatchifier
 from guesswhat.data_provider.guesswhat_tokenizer import GWTokenizer
-from guesswhat.models.guesser.guesser_network import GuesserNetwork
+from guesswhat.models.guesser.guesser_baseline import GuesserNetwork
 
 
 if __name__ == '__main__':
@@ -39,7 +40,7 @@ if __name__ == '__main__':
 
 
     args = parser.parse_args()
-    config, exp_identifier, save_path = load_config(args.config, args.exp_dir)
+    config, exp_identifier, save_path = load_config(args.config, args.exp_dir, args)
     logger = logging.getLogger()
 
     ###############################
@@ -56,7 +57,6 @@ if __name__ == '__main__':
         image_builder = get_img_builder(config['model']['image'], args.img_dir)
         use_resnet = image_builder.is_raw_image()
 
-        assert False, "Guesser + Image is not yet available"
 
 
     # Load data
@@ -75,7 +75,7 @@ if __name__ == '__main__':
 
     # Build Optimizer
     logger.info('Building optimizer..')
-    optimizer, outputs = create_optimizer(network, config)
+    optimizer, outputs = create_optimizer(network, config["optimizer"])
 
     ###############################
     #  START  TRAINING
@@ -93,7 +93,6 @@ if __name__ == '__main__':
         resnet_saver = create_resnet_saver([network])
 
     # CPU/GPU option
-    cpu_pool = Pool(args.no_thread, maxtasksperchild=1000)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu_ratio)
 
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)) as sess:
@@ -112,6 +111,10 @@ if __name__ == '__main__':
         batchifier = QuestionerBatchifier(tokenizer, sources, status=('success',))
 
         for t in range(start_epoch, no_epoch):
+
+            # Create cpu pools (at each iteration otherwise threads may become zombie - python bug)
+            cpu_pool = create_cpu_pool(args.no_thread, use_process=False)
+
             logger.info('Epoch {}..'.format(t + 1))
 
             train_iterator = Iterator(trainset,
@@ -141,6 +144,7 @@ if __name__ == '__main__':
 
         # Load early stopping
         saver.restore(sess, save_path.format('params.ckpt'))
+        cpu_pool = create_cpu_pool(args.no_thread, use_process=False)
         test_iterator = Iterator(testset, pool=cpu_pool,
                                  batch_size=batch_size,
                                  batchifier=batchifier,

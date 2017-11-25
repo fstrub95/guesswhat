@@ -1,22 +1,17 @@
 #!/usr/bin/env python
-import os
-import tensorflow as tf
-import numpy as np
 import argparse
+import os
 from distutils.util import strtobool
 
-from neural_toolbox import resnet
-
-import tensorflow.contrib.slim as slim
+import numpy as np
+import tensorflow as tf
 import tensorflow.contrib.slim.python.slim.nets.vgg as vgg
-import tensorflow.contrib.slim.python.slim.nets.resnet_v1 as resnet_v1
-import tensorflow.contrib.slim.python.slim.nets.resnet_utils as slim_utils
 
 from generic.data_provider.image_loader import RawImageBuilder, RawCropBuilder
 from generic.preprocess_data.extract_img_features import extract_features
-
 from guesswhat.data_provider.guesswhat_dataset import OracleDataset, CropDataset
 from guesswhat.data_provider.oracle_batchifier import OracleBatchifier
+from neural_toolbox import resnet
 
 parser = argparse.ArgumentParser('Feature extractor! ')
 
@@ -88,10 +83,6 @@ if args.network == "resnet":
                                      resnet_out=args.feature_name,
                                      resnet_version=args.resnet_version,
                                      is_training=False)
-    # create network
-    with slim.arg_scope(slim_utils.resnet_arg_scope(is_training=False)):
-        _, end_points = resnet_v1.resnet_v1_152(images, 1000)  # 1000 is the number of softmax class
-
 
 elif args.network == "vgg":
     _, end_points = vgg.vgg_16(images, is_training=False, dropout_keep_prob=1.0)

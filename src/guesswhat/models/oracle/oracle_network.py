@@ -1,13 +1,14 @@
 import tensorflow as tf
 
+from generic.tf_factory.image_factory import get_image_features
+from generic.tf_utils.abstract_network import ResnetModel
 from neural_toolbox import rnn, utils
 
-from generic.tf_utils.abstract_network import ResnetModel
-from generic.tf_factory.image_factory import get_image_features
+import tensorflow.contrib.layers as tfc_layers
 
 class OracleNetwork(ResnetModel):
 
-    def __init__(self, config, num_words, device='', reuse=False):
+    def __init__(self, config, no_words, no_answers, device='', reuse=False):
         ResnetModel.__init__(self, "oracle", device=device)
 
         with tf.variable_scope(self.scope_name, reuse=reuse) as scope:
@@ -19,24 +20,30 @@ class OracleNetwork(ResnetModel):
             self._question = tf.placeholder(tf.int32, [self.batch_size, None], name='question')
             self._seq_length = tf.placeholder(tf.int32, [self.batch_size], name='seq_length')
 
-            word_emb = utils.get_embedding(self._question,
-                                           n_words=num_words,
-                                           n_dim=int(config['model']['question']["embedding_dim"]),
-                                           scope="word_embedding")
+            word_emb = tfc_layers.embed_sequence(
+                ids=self._question,
+                vocab_size=no_words,
+                embed_dim=config["model"]["question"]["word_embedding_dim"],
+                scope="word_embedding",
+                reuse=reuse)
+
 
             lstm_states, _ = rnn.variable_length_LSTM(word_emb,
-                                                   num_hidden=int(config['model']['question']["no_LSTM_hiddens"]),
-                                                   seq_length=self._seq_length)
+                                                      num_hidden=int(config['model']['question']["no_LSTM_hiddens"]),
+                                                      seq_length=self._seq_length)
             embeddings.append(lstm_states)
 
             # CATEGORY
             if config['inputs']['category']:
                 self._category = tf.placeholder(tf.int32, [self.batch_size], name='category')
 
-                cat_emb = utils.get_embedding(self._category,
-                                              int(config['model']['category']["n_categories"]) + 1,  # we add the unkwon category
-                                              int(config['model']['category']["embedding_dim"]),
-                                              scope="cat_embedding")
+                cat_emb = tfc_layers.embed_sequence(
+                    ids=self._category,
+                    vocab_size=config['model']['category']["n_categories"] + 1,
+                    embed_dim=config['model']['category']["embedding_dim"],
+                    scope="cat_embedding",
+                    reuse=reuse)
+
                 embeddings.append(cat_emb)
                 print("Input: Category")
 
@@ -58,6 +65,8 @@ class OracleNetwork(ResnetModel):
                 )
                 embeddings.append(self.image_out)
                 print("Input: Image")
+
+                self._mask = tf.placeholder(tf.float32, self.image_out.get_shape(), name='mask')
 
             # CROP
             if config['inputs']['crop']:
@@ -83,11 +92,21 @@ class OracleNetwork(ResnetModel):
                 num_hiddens = config['model']['MLP']['num_hiddens']
                 l1 = utils.fully_connected(emb, num_hiddens, activation='relu', scope='l1')
 
-                self.pred = utils.fully_connected(l1, num_classes, activation='softmax', scope='softmax')
-                self.best_pred = tf.argmax(self.pred, axis=1)
+                self.out = utils.fully_connected(l1, num_classes) # no need to compute the softmax
 
-            self.loss = tf.reduce_mean(utils.cross_entropy(self.pred, self._answer))
-            self.error = tf.reduce_mean(utils.error(self.pred, self._answer))
+                #####################
+                #   Loss
+                #####################
+                self.cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=self.out, labels=self._answer, name='cross_entropy')
+                self.loss = tf.reduce_mean(self.cross_entropy)
+
+                self.softmax = tf.nn.softmax(self.out, name='answer_prob')
+                self.prediction = tf.argmax(self.out, axis=1, name='predicted_answer')
+
+
+            with tf.variable_scope('accuracy'):
+                self.accuracy = tf.equal(self.prediction, tf.argmax(self._answer, axis=1))
+                self.accuracy = tf.reduce_mean(tf.cast(self.accuracy, tf.float32))
 
             print('Model... Oracle build!')
 
@@ -95,4 +114,4 @@ class OracleNetwork(ResnetModel):
         return self.loss
 
     def get_accuracy(self):
-        return 1. - self.error
+        return self.accuracy

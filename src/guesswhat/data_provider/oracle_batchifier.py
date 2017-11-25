@@ -1,30 +1,55 @@
 import numpy as np
 import collections
 from PIL import Image
+import copy
 
 from generic.data_provider.batchifier import AbstractBatchifier
 
 from generic.data_provider.image_preprocessors import get_spatial_feat, resize_image
-from generic.data_provider.nlp_utils import padder
+from generic.data_provider.nlp_utils import padder, padder_3d
+from itertools import chain
 
-answer_dict = \
-    {'Yes': np.array([1, 0, 0], dtype=np.int32),
-       'No': np.array([0, 1, 0], dtype=np.int32),
-       'N/A': np.array([0, 0, 1], dtype=np.int32)
-    }
 
 class OracleBatchifier(AbstractBatchifier):
 
-    def __init__(self, tokenizer, sources, status=list()):
+    def __init__(self, tokenizer, sources, split_question, glove=None, ignore_NA=False, status=list()):
         self.tokenizer = tokenizer
         self.sources = sources
         self.status = status
+        self.split_question = split_question
+        self.ignore_NA = ignore_NA
+        self.glove = glove
 
     def filter(self, games):
+
         if len(self.status) > 0:
-            return [g for g in games if g.status in self.status]
+            games = [g for g in games if g.status in self.status]
+
+        if self.split_question:
+            new_games = []
+            for g in games:
+                for i, q, a in zip(g.question_ids, g.questions, g.answers):
+                    new_game = copy.copy(g)
+                    new_game.questions = [q]
+                    new_game.question_ids = [i]
+                    new_game.answers = [a]
+                    new_games.append(new_game)
+            games = new_games
         else:
-            return games
+            new_games = []
+            for g in games:
+                for i in range(len(g.question_ids)):
+                    new_game = copy.copy(g)
+                    new_game.questions = g.questions[:i+1]
+                    new_game.question_ids = g.question_ids[:i+1]
+                    new_game.answers = g.answers[:i+1]
+                    new_games.append(new_game)
+            games = new_games
+
+        if self.ignore_NA:
+            games = [g for g in games if g.answers[-1] != "N/A"]
+
+        return games
 
 
     def apply(self, games):
@@ -38,12 +63,25 @@ class OracleBatchifier(AbstractBatchifier):
             image = game.image
 
             if 'question' in sources:
-                assert  len(game.questions) == 1
-                batch['question'].append(tokenizer.apply(game.questions[0]))
+                questions = []
+                for q, a in zip(game.questions[:-1], game.answers[:-1]):
+                    questions.append(tokenizer.encode(q))
+                    questions.append(tokenizer.encode(a, is_answer=True))
+                questions.append(tokenizer.encode(game.questions[-1]))
+                batch['question'].append(list(chain.from_iterable(questions)))
+
+            if 'glove' in self.sources:
+                questions = []
+                for q, a in zip(game.questions[:-1], game.answers[:-1]):
+                    questions.append(self.tokenizer.tokenize_question(q))
+                    questions.append([self.tokenizer.format_answer(a)])
+                questions.append(tokenizer.tokenize_question(game.questions[-1]))
+                questions = list(chain.from_iterable(questions))
+                glove_vectors = self.glove.get_embeddings(questions)
+                batch['glove'].append(glove_vectors)
 
             if 'answer' in sources:
-                assert len(game.answers) == 1
-                batch['answer'].append(answer_dict[game.answers[0]])
+                batch['answer'].append(tokenizer.encode_oracle_answer(game.answers[-1], sparse=False))
 
             if 'category' in sources:
                 batch['category'].append(game.object.category_id)
@@ -59,16 +97,22 @@ class OracleBatchifier(AbstractBatchifier):
                 batch['image'].append(image.get_image())
 
             if 'mask' in sources:
-                assert "image" in batch['image'], "mask input require the image source"
+                assert "image" in batch, "mask input require the image source"
                 mask = game.object.get_mask()
+                mask = mask.astype(np.float32)
                 ft_width, ft_height = batch['image'][-1].shape[1],\
-                                     batch['image'][-1].shape[2] # Use the image feature size (not the original img size)
+                                     batch['image'][-1].shape[0] # Use the image feature size (not the original img size)
+
                 mask = resize_image(Image.fromarray(mask), height=ft_height, width=ft_width)
-                batch['mask'].append(mask)
+                batch['mask'].append(np.array(mask))
+
 
         # pad the questions
         if 'question' in sources:
             batch['question'], batch['seq_length'] = padder(batch['question'], padding_symbol=tokenizer.word2i['<padding>'])
+
+        if 'glove' in sources:
+            batch['glove'], _ = padder_3d(batch['glove'])
 
         return batch
 

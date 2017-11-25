@@ -12,7 +12,7 @@ from generic.data_provider.image_loader import get_img_builder
 
 from guesswhat.models.oracle.oracle_network import OracleNetwork
 from guesswhat.models.qgen.qgen_lstm_network import QGenNetworkLSTM
-from guesswhat.models.guesser.guesser_network import GuesserNetwork
+from guesswhat.models.guesser.guesser_baseline import GuesserNetwork
 from guesswhat.models.looper.basic_looper import BasicLooper
 
 from guesswhat.data_provider.guesswhat_dataset import Dataset
@@ -53,7 +53,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    loop_config, exp_identifier, save_path = load_config(args.config, args.exp_dir)
+    loop_config, exp_identifier, save_path = load_config(args.config, args.exp_dir, args)
 
     # Load all  networks configs
     oracle_config = get_config_from_xp(os.path.join(args.networks_dir, "oracle"), args.oracle_identifier)
@@ -61,6 +61,7 @@ if __name__ == '__main__':
     qgen_config = get_config_from_xp(os.path.join(args.networks_dir, "qgen"), args.qgen_identifier)
 
     logger = logging.getLogger()
+
 
     ###############################
     #  LOAD DATA
@@ -95,7 +96,7 @@ if __name__ == '__main__':
     qgen_var = [v for v in tf.global_variables() if "qgen" in v.name and 'rl_baseline' not in v.name]
     qgen_saver = tf.train.Saver(var_list=qgen_var)
 
-    oracle_network = OracleNetwork(oracle_config, num_words=tokenizer.no_words)
+    oracle_network = OracleNetwork(oracle_config, no_words=tokenizer.no_words, no_answers=3)
     oracle_var = [v for v in tf.global_variables() if "oracle" in v.name]
     oracle_saver = tf.train.Saver(var_list=oracle_var)
 
@@ -192,12 +193,12 @@ if __name__ == '__main__':
         logger.info(">>>  New Objects  <<<")
         compute_qgen_accuracy(sess, trainset, batchifier=train_batchifier, evaluator=looper_evaluator, tokenizer=tokenizer,
                               mode=mode_to_evaluate, save_path=save_path, cpu_pool=cpu_pool, batch_size=batch_size,
-                              store_games=args.store_games, dump_suffix="init.new_object")
+                              store_games=args.store_games, dump_suffix="init.new_object", true_id=False)
 
         logger.info(">>>  New Games  <<<")
         compute_qgen_accuracy(sess, testset, batchifier=eval_batchifier, evaluator=looper_evaluator, tokenizer=tokenizer,
                               mode=mode_to_evaluate, save_path=save_path, cpu_pool=cpu_pool, batch_size=batch_size,
-                              store_games=args.store_games, dump_suffix="init.new_games")
+                              store_games=args.store_games, dump_suffix="init.new_games", true_id=True)
         logger.info(">>>------------------------------------------------<<<")
 
         if args.skip_training:
@@ -242,11 +243,11 @@ if __name__ == '__main__':
         logger.info(">>>  New Objects  <<<")
         compute_qgen_accuracy(sess, trainset, batchifier=train_batchifier, evaluator=looper_evaluator, tokenizer=tokenizer,
                               mode=mode_to_evaluate, save_path=save_path, cpu_pool=cpu_pool, batch_size=batch_size,
-                              store_games=args.store_games, dump_suffix="final.new_object")
+                              store_games=args.store_games, dump_suffix="final.new_object", true_id=False)
 
         logger.info(">>>  New Games  <<<")
         compute_qgen_accuracy(sess, testset, batchifier=eval_batchifier, evaluator=looper_evaluator, tokenizer=tokenizer,
                               mode=mode_to_evaluate, save_path=save_path, cpu_pool=cpu_pool, batch_size=batch_size,
-                              store_games=args.store_games, dump_suffix="final.new_games")
+                              store_games=args.store_games, dump_suffix="final.new_games", true_id=True)
         logger.info(">>>------------------------------------------------<<<")
 

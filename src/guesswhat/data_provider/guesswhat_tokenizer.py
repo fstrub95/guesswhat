@@ -1,5 +1,6 @@
 from nltk.tokenize import TweetTokenizer
 import json
+import numpy as np
 
 class GWTokenizer:
     """ """
@@ -25,17 +26,25 @@ class GWTokenizer:
         self.no_token = self.word2i["<no>"]
         self.non_applicable_token = self.word2i["<n/a>"]
 
-        self.answers = [self.yes_token, self.no_token, self.non_applicable_token]
+        self.qgen_answers = [self.yes_token, self.no_token, self.non_applicable_token]
+
+        #TODO load from dico
+        self.oracle_answers_to_idx = {"yes": 0,
+                                      "no": 1,
+                                      "n/a": 2}
+
+        self.oracle_idx_to_answers = {v : k for k,v in self.oracle_answers_to_idx.items()}
+
 
     """
     Input: String
     Output: List of tokens
     """
-    def apply(self, question, is_answer=False):
+    def encode(self, question, is_answer=False):
 
         tokens = []
         if is_answer:
-            token = '<' + question.lower() + '>'
+            token = self.format_answer(question)
             tokens.append(self.word2i[token])
         else:
             for token in self.wpt.tokenize(question):
@@ -45,7 +54,27 @@ class GWTokenizer:
 
         return tokens
 
+    def format_answer(self, answer):
+        return '<' + answer.lower() + '>'
+
     def decode(self, tokens):
         return ' '.join([self.i2word[tok] for tok in tokens])
 
+    def encode_oracle_answer(self, answer, sparse):
+        idx = self.oracle_answers_to_idx[answer.lower()]
+        if sparse:
+            return idx
+        else:
+            arr = np.zeros(len(self.oracle_answers_to_idx))
+            arr[idx] = 1
+            return arr
 
+    def decode_oracle_answer(self, token, sparse):
+        if sparse:
+            return self.oracle_idx_to_answers[token]
+        else:
+            assert len(token) < len(self.oracle_answers_to_idx), "Invalid size for oracle answer"
+            return self.oracle_answers_to_idx[token.argmax()]
+
+    def tokenize_question(self, question):
+        return self.wpt.tokenize(question)

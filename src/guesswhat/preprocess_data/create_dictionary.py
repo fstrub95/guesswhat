@@ -34,6 +34,14 @@ if __name__ == '__main__':
               '<n/a>': 7,
               }
 
+    answer2i = \
+        {
+         '<unk>': 0,
+         '<yes>': 1,
+         '<no>': 2,
+         '<n/a>': 3
+         }
+
     word2occ = collections.defaultdict(int)
 
     tknzr = TweetTokenizer(preserve_case=False)
@@ -57,8 +65,8 @@ if __name__ == '__main__':
 
     dict_path = os.path.join(args.data_dir, 'dict.json')
     print("Dump file: {} ...".format(dict_path))
-    with io.open(dict_path, 'wb') as f_out:
-        data = json.dumps({'word2i': word2i}, ensure_ascii=False)
-        f_out.write(data.encode('utf8', 'replace'))
+    with io.open(dict_path, 'w', encoding='utf8') as f_out:
+        data = json.dumps({'word2i': word2i, 'answer2i': answer2i})
+        f_out.write(data)
 
     print("Done!")

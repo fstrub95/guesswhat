@@ -38,7 +38,7 @@ if __name__ == '__main__':
     parser.add_argument("-no_thread", type=int, default=1, help="No thread to load batch")
 
     args = parser.parse_args()
-    config, exp_identifier, save_path = load_config(args.config, args.exp_dir)
+    config, exp_identifier, save_path = load_config(args.config, args.exp_dir, args)
     logger = logging.getLogger()
 
     ###############################

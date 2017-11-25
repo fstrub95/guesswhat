@@ -12,7 +12,7 @@ def clear_after_stop_dialogue(dialogues, tokenizer):
 
     for i, dialogue in enumerate(dialogues):
         stop_dialogue_index = get_index(dialogue.tolist(), tokenizer.stop_dialogue, default=len(dialogue)-1)
-        answers_index = [j for j,token in enumerate(dialogue[:stop_dialogue_index+1]) if token in tokenizer.answers]
+        answers_index = [j for j,token in enumerate(dialogue[:stop_dialogue_index+1]) if token in tokenizer.qgen_answers]
         if answers_index:
             final_dialogues.append(dialogue[:stop_dialogue_index+1])
             stop_indices.append(stop_dialogue_index)

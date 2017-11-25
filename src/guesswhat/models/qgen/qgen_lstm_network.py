@@ -1,9 +1,9 @@
 import tensorflow as tf
-
-from neural_toolbox import utils\
+import tensorflow.contrib.layers as tfc_layers
 
 from generic.tf_factory.attention_factory import get_attention
 from generic.tf_utils.abstract_network import AbstractNetwork
+from neural_toolbox import utils
 
 
 class QGenNetworkLSTM(AbstractNetwork):
@@ -74,11 +74,13 @@ class QGenNetworkLSTM(AbstractNetwork):
                 image_emb = tf.tile(image_emb, [1, tf.shape(input_dialogues)[1], 1])
 
             # Compute the question embedding
-            input_words = utils.get_embedding(
-                input_dialogues,
-                n_words=num_words,
-                n_dim=config['word_embedding_size'],
-                scope="word_embedding")
+            input_words = tfc_layers.embed_sequence(
+                ids=input_dialogues,
+                vocab_size=num_words,
+                embed_dim=config["word_embedding_dim"],
+                scope="word_embedding",
+                reuse=reuse)
+
 
             # concat word embedding and image embedding
             decoder_input = tf.concat([input_words, image_emb], axis=2, name="concat_full_embedding")
@@ -204,10 +206,10 @@ class QGenNetworkLSTM(AbstractNetwork):
 
             # compute the next words. TODO: factorize with qgen.. but how?!
             with tf.variable_scope(self.scope_name, reuse=True):
-                word_emb = utils.get_embedding(
-                    input,
-                    n_words=tokenizer.no_words,
-                    n_dim=config['word_embedding_size'],
+                word_emb = tfc_layers.embed_sequence(
+                    ids=input,
+                    vocab_size=tokenizer.no_words,
+                    embed_dim=config["word_embedding_dim"],
                     scope="word_embedding",
                     reuse=True)
 

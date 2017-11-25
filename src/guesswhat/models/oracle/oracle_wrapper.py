@@ -13,7 +13,7 @@ class OracleWrapper(object):
         self.evaluator = Evaluator(self.oracle.get_sources(sess), self.oracle.scope_name)
 
 
-    def answer_question(self, sess, question, seq_length, game_data):
+    def answer_question(self, sess, question, seq_length, game_data, tokenizer):
 
         game_data["question"] = question
         game_data["seq_length"] = seq_length
@@ -26,8 +26,8 @@ class OracleWrapper(object):
         answers_indices = self.evaluator.execute(sess, output=self.oracle.best_pred, batch=game_data)
 
         # Decode the answers token  ['<yes>', '<no>', '<n/a>'] WARNING magic order... TODO move this order into tokenizer
-        answer_dico = [self.tokenizer.yes_token, self.tokenizer.no_token, self.tokenizer.non_applicable_token]
-        answers = [answer_dico[a] for a in answers_indices]  # turn indices into tokenizer_id
+        assert False, "TODO : check that tit does work"
+        answers = [tokenizer.decode_oracle_answer(a) for a in answers_indices]  # turn indices into tokenizer_id
 
         return answers
 

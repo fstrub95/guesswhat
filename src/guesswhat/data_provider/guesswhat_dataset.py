@@ -1,10 +1,12 @@
 import gzip
 import json
 import copy
+import numpy as np
 
 from generic.data_provider.dataset import AbstractDataset
 
-# TODO find a cleaner way!
+use_100 = False
+
 try:
     import cocoapi.PythonAPI.pycocotools.mask as cocoapi
     use_coco = True
@@ -94,19 +96,22 @@ class Object:
         self.segment = segment
 
         # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocotools/mask.py
-        # self.rle_mask = None
-        # if use_coco:
-        #     self.rle_mask = cocoapi.frPyObjects(self.segment,
-        #                                         h=image.height,
-        #                                         w=image.width)
+        self.rle_mask = None
+        if use_coco:
+            self.rle_mask = cocoapi.frPyObjects(self.segment,
+                                                h=image.height,
+                                                w=image.width)
 
         if crop_builder is not None:
             filename = "{}.jpg".format(image.id)
             self.crop_loader = crop_builder.build(id, filename=filename, which_set=which_set, bbox=bbox)
 
-    # def get_mask(self):
-    #     assert self.rle_mask is not None, "Mask option are not available, please compile and link cocoapi (cf. cocoapi/PythonAPI/setup.py)"
-    #     return cocoapi.decode(self.rle_mask)
+    def get_mask(self):
+        assert self.rle_mask is not None, "Mask option are not available, please compile and link cocoapi (cf. cocoapi/PythonAPI/setup.py)"
+        tmp_mask = cocoapi.decode(self.rle_mask)
+        if len(tmp_mask.shape) > 2: # concatenate several mask into a single one
+            tmp_mask = np.sum(tmp_mask, axis=2)
+        return tmp_mask
 
     def get_crop(self, **kwargs):
         assert self.crop_loader is not None, "Invalid crop loader"
@@ -140,35 +145,35 @@ class Dataset(AbstractDataset):
 
                 games.append(g)
 
-                # if len(games) > 200: break
+                if use_100 and len(games) > 200: break
 
         super(Dataset, self).__init__(games)
 
 
-class OracleDataset(AbstractDataset):
-    """
-    Each game contains a single question answer pair
-    """
-    def __init__(self, dataset):
-        old_games = dataset.get_data()
-        new_games = []
-        for g in old_games:
-            new_games += self.split(g)
-        super(OracleDataset, self).__init__(new_games)
-
-    @classmethod
-    def load(cls, folder, which_set, image_builder=None, crop_builder=None):
-        return cls(Dataset(folder, which_set, image_builder, crop_builder))
-
-    def split(self, game):
-        games = []
-        for i, q, a in zip(game.question_ids, game.questions, game.answers):
-            new_game = copy.copy(game)
-            new_game.questions = [q]
-            new_game.question_ids = [i]
-            new_game.answers = [a]
-            games.append(new_game)
-        return games
+# class OracleDataset(AbstractDataset):
+#     """
+#     Each game contains a single question answer pair
+#     """
+#     def __init__(self, dataset):
+#         old_games = dataset.get_data()
+#         new_games = []
+#         for g in old_games:
+#             new_games += self.split(g)
+#         super(OracleDataset, self).__init__(new_games)
+#
+#     @classmethod
+#     def load(cls, folder, which_set, image_builder=None, crop_builder=None):
+#         return cls(Dataset(folder, which_set, image_builder, crop_builder))
+#
+#     def split(self, game):
+#         games = []
+#         for i, q, a in zip(game.question_ids, game.questions, game.answers):
+#             new_game = copy.copy(game)
+#             new_game.questions = [q]
+#             new_game.question_ids = [i]
+#             new_game.answers = [a]
+#             games.append(new_game)
+#         return games
 
 
 class CropDataset(AbstractDataset):
@@ -204,10 +209,10 @@ class CropDataset(AbstractDataset):
         return games
 
 
-def dump_samples_into_dataset(data, save_path, tokenizer, name="model"):
+def dump_samples_into_dataset(data, save_path, tokenizer, name="model", true_id=False):
 
     with gzip.open(save_path.format('guesswhat.' + name + '.jsonl.gz'), 'wb') as f:
-        for id_game, d in enumerate(data):
+        for _, d in enumerate(data):
             dialogue = d["dialogue"]
             game = d["game"]
             object_id = d["object_id"]
@@ -231,12 +236,12 @@ def dump_samples_into_dataset(data, save_path, tokenizer, name="model"):
 
                     qas.append({"question": q,
                                 "answer": a[1:-1],
-                                "id":0,
+                                "id":k,
                                 "p": prob_obj})
 
                     start = k + 1
 
-            sample["id"] = id_game
+            sample["id"] = game.dialogue_id if true_id else 0
             sample["qas"] = qas
             sample["image"] = {
                 "id": game.image.id,
@@ -256,6 +261,47 @@ def dump_samples_into_dataset(data, save_path, tokenizer, name="model"):
             sample["object_id"] = object_id
             sample["guess_object_id"] = guess_object_id
             sample["status"] = "success" if success else "failure"
+
+            f.write(str(json.dumps(sample)).encode())
+            f.write(b'\n')
+
+
+def dump_oracle(oracle_data, games, save_path, name="oracle"):
+
+    with gzip.open(save_path.format('guesswhat.' + name + '.jsonl.gz'), 'wb') as f:
+        for game in games:
+
+            qas = oracle_data[game.dialogue_id]
+            sample = {}
+
+            # check that question/answer are correctly sorted
+            for qa, q_id in zip(qas, game.question_ids):
+                assert qa["id"] == q_id
+
+            for qo, qh in zip(qas, game.questions):
+                assert qo["question"] == qh, "{} vs {}".format(qo,qh)
+
+            sample["id"] = game.dialogue_id
+            sample["qas"] = qas
+            sample["image"] = {
+                "id": game.image.id,
+                "width": game.image.width,
+                "height": game.image.height,
+                "coco_url": game.image.url
+            }
+
+            sample["objects"] = [{"id": o.id,
+                                  "category_id": o.category_id,
+                                  "category": o.category,
+                                  "area": o.area,
+                                  "bbox": o.bbox.coco_bbox,
+                                  "segment" : o.segment,
+                                  } for o in game.objects]
+
+            sample["object_id"] = game.object_id
+            sample["guess_object_id"] = game.object_id
+            sample["status"] = game.status
+
 
             f.write(str(json.dumps(sample)).encode())
             f.write(b'\n')
