@@ -1,12 +1,13 @@
 import tensorflow as tf
 import tensorflow.contrib.layers as tfc_layers
 
-import neural_toolbox.film_layer as film
 import neural_toolbox.ft_utils as ft_utils
 import neural_toolbox.rnn as rnn
-from generic.tf_factory.attention_factory import get_attention
+
 from generic.tf_factory.image_factory import get_image_features
+
 from generic.tf_utils.abstract_network import ResnetModel
+from neural_toolbox.film_stack import FiLM_Stack
 
 
 
@@ -32,6 +33,7 @@ class FiLM_Oracle(ResnetModel):
             self._seq_length = tf.placeholder(tf.int32, [self.batch_size], name='seq_length')
             self._answer = tf.placeholder(tf.int64, [self.batch_size, no_answers], name='answer')
 
+
             word_emb = tfc_layers.embed_sequence(
                 ids=self._question,
                 vocab_size=no_words,
@@ -43,6 +45,7 @@ class FiLM_Oracle(ResnetModel):
                 self._glove = tf.placeholder(tf.float32, [None, None, 300], name="glove")
                 word_emb = tf.concat([word_emb, self._glove], axis=2)
 
+            word_emb = tf.nn.dropout(word_emb, dropout_keep)
             self.rnn_states, self.last_rnn_state = rnn.gru_factory(
                 inputs=word_emb,
                 seq_length=self._seq_length,
@@ -50,24 +53,7 @@ class FiLM_Oracle(ResnetModel):
                 bidirectional=config["question"]["bidirectional"],
                 max_pool=config["question"]["max_pool"],
                 reuse=reuse)
-
-
-            #####################
-            #   IMAGES
-            #####################
-
-            self._image = tf.placeholder(tf.float32, [self.batch_size] + config['image']["dim"], name='image')
-            self.image_out = get_image_features(
-                image=self._image, question=self.last_rnn_state,
-                is_training=self._is_training,
-                scope_name="image_processing",
-                config=config['image'],
-                dropout_keep=dropout_keep
-            )
-
-            assert len(self.image_out.get_shape()) == 4, \
-                "Incorrect image input and/or attention mechanism (should be none)"
-
+            self.last_rnn_state = tf.nn.dropout(self.last_rnn_state, dropout_keep)
 
             #####################
             #   ORALE SIDE INPUT
@@ -95,8 +81,6 @@ class FiLM_Oracle(ResnetModel):
                                                            reuse=reuse,
                                                            scope="spatial_upsampling")
 
-
-
             # Mask
             self._mask = tf.placeholder(tf.float32, self.image_out.get_shape()[:3], name='mask')
             self._mask = tf.expand_dims(self._mask, axis=-1)
@@ -112,122 +96,92 @@ class FiLM_Oracle(ResnetModel):
             self.concat_emb(config, "spatial", emb=spatial_emb)
             self.concat_emb(config, "mask", emb=tf.reshape(self._mask, shape=[-1, mask_dim]))
 
+            self.visual_features = []
 
             #####################
-            #   STEM
+            #   IMAGES
             #####################
 
-            with tf.variable_scope("stem", reuse=reuse):
 
-                stem_features = self._image
-                if config["stem"]["spatial_location"]:
-                    stem_features = ft_utils.append_spatial_location(stem_features)
+            if config["inputs"]["image"]:
+                self._image = tf.placeholder(tf.float32, [self.batch_size] + config['image']["dim"], name='image')
+                self.image_out = get_image_features(
+                    image=self._image, question=self.last_rnn_state,
+                    is_training=self._is_training,
+                    scope_name="image_processing",
+                    config=config['image'],
+                    dropout_keep=dropout_keep
+                )
 
-                if config["stem"]["mask"]:
-                    stem_features = tf.concat([stem_features, self._mask], axis=3)
+                assert len(self.image_out.get_shape()) == 4, \
+                    "Incorrect image input and/or attention mechanism (should be none)"
 
+                with tf.variable_scope("image_film_stack", reuse=reuse):
 
-                self.stem_conv = tfc_layers.conv2d(stem_features,
-                                                   num_outputs=config["stem"]["conv_out"],
-                                                   kernel_size=config["stem"]["conv_kernel"],
-                                                   normalizer_fn=tfc_layers.batch_norm,
-                                                   normalizer_params={"center": True, "scale": True,
-                                                                      "decay": 0.9,
-                                                                      "is_training": self._is_training,
-                                                                      "reuse": reuse},
-                                                   activation_fn=tf.nn.relu,
-                                                   reuse=reuse,
-                                                   scope="stem_conv")
+                    def append_extra_features(features, config):
+                        if config["spatial_location"]:
+                            features = ft_utils.append_spatial_location(features)
+                        if config["mask"]:
+                            features = tf.concat([features, self._mask], axis=3)
+                        return features
 
-            #####################
-            #   FiLM Layers
-            #####################
-
-            with tf.variable_scope("resblocks", reuse=reuse):
-
-                res_output = self.stem_conv
-                self.resblocks = []
-
-                for i in range(config["resblock"]["no_resblock"]):
-                    with tf.variable_scope("ResBlock_{}".format(i), reuse=reuse):
-
-                        if config["resblock"]["mask"]:
-                            res_output = tf.concat([res_output, self._mask], axis=3)
-
-                        resblock = film.FiLMResblock(res_output, self.film_input,
-                                                     kernel1=config["resblock"]["kernel1"],
-                                                     kernel2=config["resblock"]["kernel2"],
-                                                     spatial_location=config["resblock"]["spatial_location"],
+                    self.film_img_stack = FiLM_Stack(image=self.image_out,
+                                                     film_input=self.film_input,
                                                      is_training=self._is_training,
+                                                     dropout_keep=dropout_keep,
+                                                     config=config["image"],
+                                                     append_extra_features=append_extra_features,
                                                      reuse=reuse)
 
-                        self.resblocks.append(resblock)
-                        res_output = resblock.get()
+                self.visual_features.append(self.film_img_stack)
 
             #####################
-            #   Classifier
+            #   CROP
             #####################
 
-            with tf.variable_scope("classifier", reuse=reuse):
+            if config["inputs"]["crop"]:
+                self._crop = tf.placeholder(tf.float32, [self.batch_size] + config['crop']["dim"], name='crop')
+                self.crop_out = get_image_features(
+                    image=self._image, question=self.last_rnn_state,
+                    is_training=self._is_training,
+                    scope_name="image_processing",
+                    config=config['crop'],
+                    dropout_keep=dropout_keep
+                )
 
-                classif_features = res_output
-                if config["classifier"]["spatial_location"]:
-                    classif_features = ft_utils.append_spatial_location(classif_features)
+                assert len(self.crop_out.get_shape()) == 4, \
+                    "Incorrect crop input and/or attention mechanism (should be none)"
 
-                if config["classifier"]["mask"]:
-                    classif_features = tf.concat([classif_features, self._mask], axis=3)
+                with tf.variable_scope("crop_film_stack", reuse=reuse):
+                    self.film_crop_stack = FiLM_Stack(image=self.crop_out,
+                                                     film_input=self.film_input,
+                                                     is_training=self._is_training,
+                                                     dropout_keep=dropout_keep,
+                                                     config=config["crop"],
+                                                     reuse=reuse)
 
-                # 2D-Conv
-                self.classif_conv = tfc_layers.conv2d(classif_features,
-                                                      num_outputs=config["classifier"]["conv_out"],
-                                                      kernel_size=config["classifier"]["conv_kernel"],
-                                                      normalizer_fn=tfc_layers.batch_norm,
-                                                      normalizer_params={"center": True, "scale": True,
-                                                                         "decay": 0.9,
-                                                                         "is_training": self._is_training,
-                                                                         "reuse": reuse},
-                                                      activation_fn=tf.nn.relu,
-                                                      reuse=reuse,
-                                                      scope="classifier_conv")
-
-
-                self.pooling = get_attention(self.classif_conv, self.attention_input, config["classifier"]["attention"],
-                                             dropout_keep=dropout_keep, reuse=reuse)
-
-                if config["classifier"]["merge"]:
-
-                    self.classif_rnn = tfc_layers.fully_connected(self.mlp_input,
-                                                                   num_outputs=config["classifier"]["conv_out"],
-                                                                   normalizer_fn=tfc_layers.batch_norm,
-                                                                   normalizer_params={"center": True, "scale": True,
-                                                                                     "decay": 0.9,
-                                                                                     "is_training": self._is_training,
-                                                                                     "reuse": reuse},
-                                                                   activation_fn=tf.nn.relu,
-                                                                   reuse=reuse,
-                                                                   scope="classifier_rnn_layer")
-
-                    self.classif_state = self.pooling * self.classif_rnn
-                    # self.classif_state = tf.nn.dropout(self.classif_state, dropout_keep)
-                else:
-                    self.classif_state = tf.concat([self.pooling, self.mlp_input], axis=1)
+                self.visual_features.append(self.film_crop_stack)
 
 
-                self.hidden_state = tfc_layers.fully_connected(self.classif_state,
-                                                                   num_outputs=config["classifier"]["no_mlp_units"],
-                                                                   normalizer_fn=tfc_layers.batch_norm,
-                                                                   normalizer_params={"center": True, "scale": True,
-                                                                                      "decay": 0.9,
-                                                                                      "is_training": self._is_training,
-                                                                                      "reuse": reuse},activation_fn=tf.nn.relu,
-                                                                   reuse=reuse,
-                                                                   scope="classifier_hidden_layer")
+            #####################
+            #   FINAL LAYER
+            #####################
 
-                self.out = tfc_layers.fully_connected(self.hidden_state,
-                                                             num_outputs=no_answers,
-                                                             activation_fn=None,
-                                                             reuse=reuse,
-                                                             scope="classifier_softmax_layer")
+            assert len(self.visual_features) > 0
+
+            self.classif_state = tf.concat(self.visual_features + [self.mlp_input], axis=1)
+
+            self.hidden_state = tfc_layers.fully_connected(self.classif_state,
+                                                               num_outputs=config["final_layer"]["no_mlp_units"],
+                                                               reuse=reuse,
+                                                               scope="classifier_hidden_layer")
+
+            self.hidden_state = tf.nn.dropout(self.hidden_state, dropout_keep)
+            self.out = tfc_layers.fully_connected(self.hidden_state,
+                                                         num_outputs=no_answers,
+                                                         activation_fn=None,
+                                                         reuse=reuse,
+                                                         scope="classifier_softmax_layer")
 
             #####################
             #   Loss
@@ -258,12 +212,6 @@ class FiLM_Oracle(ResnetModel):
             else:
                 self.film_input = tf.concat([self.film_input, emb], axis=1)
 
-        if config["attention_input"][name]:
-            if self.attention_input is None:
-                self.attention_input = emb
-            else:
-                self.attention_input = tf.concat([self.attention_input, emb], axis=1)
-
         if config["mlp_input"][name]:
             if self.mlp_input is None:
                 self.mlp_input = emb
@@ -289,17 +237,9 @@ if __name__ == "__main__":
     "film_input":
     {
       "question": True,
-      "category": False,
+      "category": True,
       "spatial": False,
-      "mask": True
-    },
-
-    "attention_input":
-    {
-      "question": True,
-      "category": False,
-      "spatial": False,
-      "mask": True
+      "mask": False,
     },
 
     "mlp_input":
@@ -311,6 +251,43 @@ if __name__ == "__main__":
     },
 
 
+    "crop":
+    {
+      "image_input": "raw",
+      "dim": [224, 224, 3],
+      "normalize": False,
+
+      "attention" : {
+        "mode": "none"
+      },
+
+      "stem": {
+            "spatial_location": True,
+            "mask": True,
+            "conv_out": 128,
+            "conv_kernel": [3, 3]
+        },
+
+        "resblock": {
+            "no_resblock": 2,
+            "spatial_location": True,
+            "mask": True,
+            "kernel1": [1, 1],
+            "kernel2": [3, 3]
+        },
+
+        "classifier": {
+            "spatial_location": True,
+            "mask": False,
+            "conv_out": 256,
+            "conv_kernel": [1, 1],
+
+            "attention": {
+                "mode": "max",
+            }
+        }
+
+    },
 
     "image":
     {
@@ -320,14 +297,40 @@ if __name__ == "__main__":
 
       "attention" : {
         "mode": "none"
-      }
+      },
 
+      "stem": {
+            "spatial_location": True,
+            "mask": True,
+            "conv_out": 256,
+            "conv_kernel": [3, 3]
+        },
+
+        "resblock": {
+            "no_resblock": 2,
+            "spatial_location": True,
+            "mask": True,
+            "kernel1": [1, 1],
+            "kernel2": [3, 3]
+        },
+
+        "classifier": {
+            "spatial_location": True,
+            "mask": False,
+            "conv_out": 512,
+            "conv_kernel": [1, 1],
+
+            "attention": {
+                "mode": "max",
+            }
+        }
     },
 
+
     "question": {
-      "word_embedding_dim": 100,
+      "word_embedding_dim": 300,
       "rnn_state_size": 2048,
-      "glove" : True,
+      "glove" : False,
       "bidirectional" : True,
       "max_pool" : False
     },
@@ -342,35 +345,9 @@ if __name__ == "__main__":
     },
 
 
-    "stem" : {
-      "spatial_location" : True,
-      "mask": True,
-      "conv_out": 256,
-      "conv_kernel": [3,3]
-    },
-
-    "resblock" : {
-      "no_resblock" : 4,
-      "spatial_location" : True,
-      "mask": True,
-      "kernel1" : [1,1],
-      "kernel2" : [3,3]
-    },
-
-    "classifier" : {
-      "spatial_location" : True,
-      "mask": True,
-      "conv_out": 512,
-      "conv_kernel": [1,1],
-      "no_mlp_units": 1024,
-
-      "merge" : False,
-
-      "attention" : {
-        "mode": "glimpse",
-        "no_attention_mlp" : 256,
-        "no_glimpses" : 1
-      }
+    "final_layer" :
+    {
+    "no_mlp_units": 1024,
     }
 
   }, no_words=354, no_answers=3)

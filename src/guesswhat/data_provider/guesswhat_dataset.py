@@ -121,6 +121,7 @@ class Object:
 
 
 class Dataset(AbstractDataset):
+
     """Loads the dataset."""
     def __init__(self, folder, which_set, image_builder=None, crop_builder=None):
         file = '{}/guesswhat.{}.jsonl.gz'.format(folder, which_set)
@@ -150,55 +151,83 @@ class Dataset(AbstractDataset):
         super(Dataset, self).__init__(games)
 
 
-# class OracleDataset(AbstractDataset):
-#     """
-#     Each game contains a single question answer pair
-#     """
-#     def __init__(self, dataset):
-#         old_games = dataset.get_data()
-#         new_games = []
-#         for g in old_games:
-#             new_games += self.split(g)
-#         super(OracleDataset, self).__init__(new_games)
-#
-#     @classmethod
-#     def load(cls, folder, which_set, image_builder=None, crop_builder=None):
-#         return cls(Dataset(folder, which_set, image_builder, crop_builder))
-#
-#     def split(self, game):
-#         games = []
-#         for i, q, a in zip(game.question_ids, game.questions, game.answers):
-#             new_game = copy.copy(game)
-#             new_game.questions = [q]
-#             new_game.question_ids = [i]
-#             new_game.answers = [a]
-#             games.append(new_game)
-#         return games
+
+class OracleDataset(AbstractDataset):
+    """
+    Each game contains a single question answer pair
+    """
+    def __init__(self, dataset, split_question=True):
+        old_games = dataset.get_data()
+        new_games = []
+
+        for g in old_games:
+            if split_question:
+                new_games += self.independant_split(g)
+            else:
+                new_games += self.contiguous_split(g)
+
+        super(OracleDataset, self).__init__(new_games)
+
+    @classmethod
+    def load(cls, folder, which_set, image_builder=None, crop_builder=None, split_question=True):
+        return cls(Dataset(folder, which_set, image_builder, crop_builder), split_question)
+
+    def independant_split(self, game):
+        games = []
+        for i, q, a in zip(game.question_ids, game.questions, game.answers):
+            new_game = copy.copy(game)
+            new_game.questions = [q]
+            new_game.question_ids = [i]
+            new_game.answers = [a]
+            games.append(new_game)
+        return games
+
+    def contiguous_split(self, game):
+        games = []
+        for i in range(len(game.question_ids)):
+            new_game = copy.copy(game)
+            new_game.questions = game.questions[:i + 1]
+            new_game.question_ids = game.question_ids[:i + 1]
+            new_game.answers = game.answers[:i + 1]
+            games.append(new_game)
+        return games
 
 
 class CropDataset(AbstractDataset):
     """
     Each game contains no question/answers but a new object
     """
-    def __init__(self, dataset):
+    def __init__(self, dataset, expand_objects):
         old_games = dataset.get_data()
         new_games = []
+
+
         for g in old_games:
-            new_games += self.split(g)
+            if expand_objects:
+                new_games += self.split(g)
+            else:
+               new_games += self.update_ref(g)
         super(CropDataset, self).__init__(new_games)
 
     @classmethod
-    def load(cls, folder, which_set, image_builder=None, crop_builder=None):
-        return cls(Dataset(folder, which_set, image_builder, crop_builder))
+    def expand_game_objects(cls, folder, which_set, image_builder=None, crop_builder=None):
+        return CropDataset(Dataset(folder, which_set, image_builder, crop_builder), expand_objects=True)
+
+    @classmethod
+    def keep_game_objects(cls, folder, which_set, image_builder=None, crop_builder=None):
+        return CropDataset(Dataset(folder, which_set, image_builder, crop_builder), expand_objects=False)
 
     def split(self, game):
         games = []
         for obj in game.objects:
             new_game = copy.copy(game)
-            new_game.questions = []
-            new_game.question_ids = []
-            new_game.answers = []
+            new_game.questions = [""]
+            new_game.question_ids = [0]
+            new_game.answers = [""]
             new_game.object_id = obj.id
+
+            # update object reference
+            new_game.object = [o for o in game.objects if o.id == obj.id][0]
 
             # Hack the image id to differentiate objects
             new_game.image = copy.copy(game.image)
@@ -207,6 +236,19 @@ class CropDataset(AbstractDataset):
             games.append(new_game)
 
         return games
+
+    def update_ref(self, game):
+
+        new_game = copy.copy(game)
+        new_game.questions = [""]
+        new_game.question_ids = [0]
+        new_game.answers = [""]
+
+        # Hack the image id to differentiate objects
+        new_game.image = copy.copy(game.image)
+        new_game.image.id = game.object_id
+
+        return [new_game]
 
 
 def dump_samples_into_dataset(data, save_path, tokenizer, name="model", true_id=False):

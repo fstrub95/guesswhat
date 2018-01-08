@@ -8,7 +8,7 @@
     "inputs" :
     {
       "image" : true,
-      "crop" : false
+      "crop" : true
     },
 
     "film_input":
@@ -46,6 +46,20 @@
       }
 
     },
+
+    "crop":
+    {
+      "image_input": "conv",
+      "dim": [14, 14, 2048],
+      "normalize": false,
+
+      "attention" : {
+        "mode": "none"
+      }
+
+    },
+
+
 
     "question": {
       "word_embedding_dim": 200,

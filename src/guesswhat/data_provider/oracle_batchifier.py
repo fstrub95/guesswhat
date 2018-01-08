@@ -12,7 +12,7 @@ from itertools import chain
 
 class OracleBatchifier(AbstractBatchifier):
 
-    def __init__(self, tokenizer, sources, split_question, glove=None, ignore_NA=False, status=list()):
+    def __init__(self, tokenizer, sources, split_question=True, glove=None, ignore_NA=False, status=list()):
         self.tokenizer = tokenizer
         self.sources = sources
         self.status = status

@@ -9,7 +9,7 @@ import tensorflow.contrib.slim.python.slim.nets.vgg as vgg
 
 from generic.data_provider.image_loader import RawImageBuilder, RawCropBuilder
 from generic.preprocess_data.extract_img_features import extract_features
-from guesswhat.data_provider.guesswhat_dataset import OracleDataset, CropDataset
+from guesswhat.data_provider.guesswhat_dataset import Dataset, CropDataset
 from guesswhat.data_provider.oracle_batchifier import OracleBatchifier
 from neural_toolbox import resnet
 
@@ -26,7 +26,7 @@ parser.add_argument("-resnet_version", type=int, default=152, choices=[50, 101, 
 parser.add_argument("-ckpt", type=str, required=True, help="Path for network checkpoint: ")
 parser.add_argument("-feature_name", type=str, default="", help="Pick the name of the network features default=(fc8 - block4)")
 
-parser.add_argument("-mode", type=str, choices=["img", "crop"], help="Select to either dump the img/crop feature")
+parser.add_argument("-mode", type=str, choices=["img", "crop", "crop_all"], help="Select to either dump the img/crop feature")
 parser.add_argument("-subtract_mean", type=lambda x:bool(strtobool(x)), default="True", help="Preprocess the image by substracting the mean")
 parser.add_argument("-img_size", type=int, default=224, help="image size (pixels)")
 parser.add_argument("-crop_scale", type=float, default=1.1, help="crop scale around the bbox")
@@ -51,31 +51,30 @@ else:
 if args.mode == "img":
     images = tf.placeholder(tf.float32, [None, args.img_size, args.img_size, 3], name='image')
     source = 'image'
-    crop_builder=None
-    dataset_cstor = OracleDataset.load
+    crop_builder = None
+    dataset_cstor = Dataset
     image_builder = RawImageBuilder(args.img_dir,
                                     height=args.img_size,
                                     width=args.img_size,
                                     channel=channel_mean)
 
-elif args.mode == "crop":
+elif "crop" in args.mode:
     images = tf.placeholder(tf.float32, [None, args.img_size, args.img_size, 3], name='crop')
     source = 'crop'
     image_builder = None
-    dataset_cstor = CropDataset.load
+    if args.mode == "crop_all":
+        dataset_cstor = CropDataset.expand_game_objects
+    else:
+        dataset_cstor = CropDataset.keep_game_objects
+
     crop_builder = RawCropBuilder(args.img_dir,
                                   height=args.img_size,
                                   width=args.img_size,
                                   scale=args.crop_scale,
                                   channel=channel_mean)
+
 else:
     assert False, "Invalid mode: {}".format(args.mode)
-
-
-# Define the output folder
-out_file = "gw_{mode}_{network}_{feature_name}_{size}".format(
-    mode=args.mode, network=args.network, feature_name=args.feature_name, size=args.img_size)
-
 
 print("Create networks...")
 if args.network == "resnet":

@@ -1,5 +1,12 @@
 {
-  "inputs": {
+
+
+  "type" : "baseline",
+  "split_question" : true,
+
+  "model": {
+
+    "inputs": {
     "question": true,
     "category": true,
     "spatial": true,
@@ -7,7 +14,6 @@
     "image": false
   },
 
-  "model": {
     "question": {
       "no_LSTM_hiddens": 512,
       "embedding_dim": 300
