@@ -9,7 +9,7 @@ import tensorflow.contrib.slim.python.slim.nets.vgg as vgg
 
 from generic.data_provider.image_loader import RawImageBuilder, RawCropBuilder
 from generic.preprocess_data.extract_img_features import extract_features
-from guesswhat.data_provider.guesswhat_dataset import Dataset, CropDataset
+from guesswhat.data_provider.guesswhat_dataset import OracleDataset, CropDataset
 from guesswhat.data_provider.oracle_batchifier import OracleBatchifier
 from neural_toolbox import resnet
 
@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser('Feature extractor! ')
 
 parser.add_argument("-img_dir", type=str, required=True, help="Input Image folder")
 parser.add_argument("-data_dir", type=str, required=True,help="Dataset folder")
-parser.add_argument("-set_type", type=list, default=["valid", "train", "test"], help='Select the dataset to dump')
+parser.add_argument("-set_type", type=list, default=["train", "valid", "test"], help='Select the dataset to dump')
 
 parser.add_argument("-out_dir", type=str, required=True, help="Output folder")
 
@@ -48,33 +48,37 @@ else:
 
 
 # define the image loader (raw vs crop)
+dataset_args = {"folder" : args.data_dir}
+
 if args.mode == "img":
     images = tf.placeholder(tf.float32, [None, args.img_size, args.img_size, 3], name='image')
     source = 'image'
-    crop_builder = None
-    dataset_cstor = Dataset
+    dataset_cstor = OracleDataset.load
     image_builder = RawImageBuilder(args.img_dir,
                                     height=args.img_size,
                                     width=args.img_size,
                                     channel=channel_mean)
 
+    dataset_args["split_question"] = True
+    dataset_args["image_builder"] = image_builder
+
 elif "crop" in args.mode:
     images = tf.placeholder(tf.float32, [None, args.img_size, args.img_size, 3], name='crop')
     source = 'crop'
-    image_builder = None
-    if args.mode == "crop_all":
-        dataset_cstor = CropDataset.expand_game_objects
-    else:
-        dataset_cstor = CropDataset.keep_game_objects
-
+    dataset_cstor = CropDataset.load
     crop_builder = RawCropBuilder(args.img_dir,
                                   height=args.img_size,
                                   width=args.img_size,
                                   scale=args.crop_scale,
                                   channel=channel_mean)
 
+    dataset_args["expand_objects"] = (args.mode == "crop_all")
+    dataset_args["crop_builder"] = crop_builder
+
 else:
     assert False, "Invalid mode: {}".format(args.mode)
+
+
 
 print("Create networks...")
 if args.network == "resnet":
@@ -91,11 +95,13 @@ else:
     assert False, "Incorrect Network"
 
 
+
+
 extract_features(
     img_input = images,
     ft_output = ft_output,
     dataset_cstor = dataset_cstor,
-    dataset_args = {"folder": args.data_dir, "image_builder":image_builder, "crop_builder":crop_builder},
+    dataset_args = dataset_args,
     batchifier_cstor = OracleBatchifier,
     out_dir = args.out_dir,
     set_type = args.set_type,

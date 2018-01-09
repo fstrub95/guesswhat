@@ -55,11 +55,10 @@ class FiLM_Oracle(ResnetModel):
                 reuse=reuse)
             self.last_rnn_state = tf.nn.dropout(self.last_rnn_state, dropout_keep)
 
-            #####################
-            #   ORALE SIDE INPUT
-            #####################
 
-
+            #####################
+            #   ORACLE SIDE INPUTS
+            #####################
 
             # Category
             self._category = tf.placeholder(tf.int32, [self.batch_size], name='category')
@@ -70,33 +69,22 @@ class FiLM_Oracle(ResnetModel):
                 embed_dim=config['category']["embedding_dim"],
                 scope="category_embedding",
                 reuse=reuse)
+            cat_emb = tf.nn.dropout(cat_emb, dropout_keep)
 
 
             # Spatial
             self._spatial = tf.placeholder(tf.float32, [self.batch_size, 8], name='spatial')
+            if config["spatial"]["no_mlp_units"] > 0:
+                spatial_emb = tfc_layers.fully_connected(self._spatial,
+                                                               num_outputs=config["spatial"]["no_mlp_units"],
+                                                               activation_fn=tf.nn.relu,
+                                                               reuse=reuse,
+                                                               scope="spatial_upsampling")
+                spatial_emb = tf.nn.dropout(spatial_emb, dropout_keep)
+            else:
+                spatial_emb = self._spatial
 
-            spatial_emb = tfc_layers.fully_connected(self._spatial,
-                                                           num_outputs=config["spatial"]["no_mlp_units"],
-                                                           activation_fn=tf.nn.relu,
-                                                           reuse=reuse,
-                                                           scope="spatial_upsampling")
-
-            # Mask
-            self._mask = tf.placeholder(tf.float32, self.image_out.get_shape()[:3], name='mask')
-            self._mask = tf.expand_dims(self._mask, axis=-1)
-
-            mask_dim = int(self.image_out.get_shape()[1]) * int(self.image_out.get_shape()[2])
-
-
-            # Create input embedding
-            self.film_input, self.attention_input, self.mlp_input = None, None, None
-
-            self.concat_emb(config, "question", emb=self.last_rnn_state)
-            self.concat_emb(config, "category", emb=cat_emb)
-            self.concat_emb(config, "spatial", emb=spatial_emb)
-            self.concat_emb(config, "mask", emb=tf.reshape(self._mask, shape=[-1, mask_dim]))
-
-            self.visual_features = []
+            self.classifier_input = []
 
             #####################
             #   IMAGES
@@ -113,27 +101,54 @@ class FiLM_Oracle(ResnetModel):
                     dropout_keep=dropout_keep
                 )
 
-                assert len(self.image_out.get_shape()) == 4, \
-                    "Incorrect image input and/or attention mechanism (should be none)"
+                # apply attention or use vgg features
+                if len(self.image_out.get_shape()) == 2:
+                    self.classifier_input.append(self.image_out)
 
-                with tf.variable_scope("image_film_stack", reuse=reuse):
+                else:
+                    # Compute object mask
+                    self._mask = tf.placeholder(tf.float32, self.image_out.get_shape()[:3], name='mask')
+                    self._mask = tf.expand_dims(self._mask, axis=-1)
 
-                    def append_extra_features(features, config):
-                        if config["spatial_location"]:
-                            features = ft_utils.append_spatial_location(features)
-                        if config["mask"]:
-                            features = tf.concat([features, self._mask], axis=3)
-                        return features
+                    self.film_img_input = []
+                    with tf.variable_scope("image_film_input", reuse=reuse):
 
-                    self.film_img_stack = FiLM_Stack(image=self.image_out,
-                                                     film_input=self.film_input,
-                                                     is_training=self._is_training,
-                                                     dropout_keep=dropout_keep,
-                                                     config=config["image"],
-                                                     append_extra_features=append_extra_features,
-                                                     reuse=reuse)
+                        if config["image"]["film_input"]["question"]:
+                            self.film_img_input.append(self.last_rnn_state)
 
-                self.visual_features.append(self.film_img_stack)
+                        if config["image"]["film_input"]["category"]:
+                            self.film_img_input.append(cat_emb)
+
+                        if config["image"]["film_input"]["spatial"]:
+                            self.film_img_input.append(spatial_emb)
+
+                        if config["image"]["film_input"]["mask"]:
+                            mask_dim = int(self.image_out.get_shape()[1]) * int(self.image_out.get_shape()[2])
+                            flat_mask = tf.reshape(self._mask, shape=[-1, mask_dim])
+                            self.film_crop_input.append(flat_mask)
+
+                        self.film_img_input = tf.concat(self.film_img_input, axis=1)
+
+                    with tf.variable_scope("image_film_stack", reuse=reuse):
+
+                        def append_extra_features(features, config):
+                            if config["spatial_location"]: # add the pixel location as two additional feature map
+                                features = ft_utils.append_spatial_location(features)
+                            if config["mask"]: # add the mask on the object as one additional feature map
+                                features = tf.concat([features, self._mask], axis=3)
+                            return features
+
+
+                        self.film_img_stack = FiLM_Stack(image=self.image_out,
+                                                         film_input=self.film_img_input,
+                                                         attention_input=self.last_rnn_state,
+                                                         is_training=self._is_training,
+                                                         dropout_keep=dropout_keep,
+                                                         config=config["image"]["film_block"],
+                                                         append_extra_features=append_extra_features,
+                                                         reuse=reuse)
+
+                self.classifier_input.append(self.film_img_stack.get())
 
             #####################
             #   CROP
@@ -144,37 +159,72 @@ class FiLM_Oracle(ResnetModel):
                 self.crop_out = get_image_features(
                     image=self._image, question=self.last_rnn_state,
                     is_training=self._is_training,
-                    scope_name="image_processing",
+                    scope_name="crop_processing",
                     config=config['crop'],
                     dropout_keep=dropout_keep
                 )
 
-                assert len(self.crop_out.get_shape()) == 4, \
-                    "Incorrect crop input and/or attention mechanism (should be none)"
+                # apply attention or use vgg features
+                if len(self.crop_out.get_shape()) == 2:
+                    self.classifier_input.append(self.crop_out)
 
-                with tf.variable_scope("crop_film_stack", reuse=reuse):
-                    self.film_crop_stack = FiLM_Stack(image=self.crop_out,
-                                                     film_input=self.film_input,
-                                                     is_training=self._is_training,
-                                                     dropout_keep=dropout_keep,
-                                                     config=config["crop"],
-                                                     reuse=reuse)
+                else:
 
-                self.visual_features.append(self.film_crop_stack)
+                    # TODO Compute object mask
+                    # self._mask_crop = tf.placeholder(tf.float32, self.image_out.get_shape()[:3], name='mask_crop')
+                    # self._mask_crop = tf.expand_dims(self._mask, axis=-1)
+
+                    self.film_crop_input = []
+                    with tf.variable_scope("image_film_input", reuse=reuse):
+
+                        if config["crop"]["film_input"]["question"]:
+                            self.film_crop_input.append(self.last_rnn_state)
+
+                        if config["crop"]["film_input"]["category"]:
+                            self.film_crop_input.append(cat_emb)
+
+                        if config["crop"]["film_input"]["spatial"]:
+                            self.film_crop_input.append(spatial_emb)
+
+                        # if config["crop"]["film_input"]["mask"]:
+                        #     mask_dim = int(self.crop_out.get_shape()[1]) * int(self.crop_out.get_shape()[2])
+                        #     flat_mask = tf.reshape(self._mask_crop, shape=[-1, mask_dim])
+                        #     self.film_crop_input.append(flat_mask)
+
+                        self.film_crop_input = tf.concat(self.film_crop_input, axis=1)
+
+                    with tf.variable_scope("crop_film_stack", reuse=reuse):
+                        self.film_crop_stack = FiLM_Stack(image=self.crop_out,
+                                                          film_input=self.film_crop_input,
+                                                          attention_input=self.last_rnn_state,
+                                                          is_training=self._is_training,
+                                                          dropout_keep=dropout_keep,
+                                                          config=config["crop"]["film_block"],
+                                                          reuse=reuse)
+
+                    self.classifier_input.append(self.film_crop_stack.get())
 
 
             #####################
             #   FINAL LAYER
             #####################
 
-            assert len(self.visual_features) > 0
+            if config["classifier"]["inputs"]["question"]:
+                self.classifier_input.append(self.last_rnn_state)
 
-            self.classif_state = tf.concat(self.visual_features + [self.mlp_input], axis=1)
+            if config["classifier"]["inputs"]["category"]:
+                self.classifier_input.append(cat_emb)
 
-            self.hidden_state = tfc_layers.fully_connected(self.classif_state,
-                                                               num_outputs=config["final_layer"]["no_mlp_units"],
-                                                               reuse=reuse,
-                                                               scope="classifier_hidden_layer")
+            if config["classifier"]["inputs"]["spatial"]:
+                self.classifier_input.append(spatial_emb)
+
+            assert len(self.classifier_input) > 0, "Please provide some inputs for the classifier!!!"
+            self.classifier_input = tf.concat(self.classifier_input, axis=1)
+
+            self.hidden_state = tfc_layers.fully_connected(self.classifier_input,
+                                                           num_outputs=config["classifier"]["no_mlp_units"],
+                                                           reuse=reuse,
+                                                           scope="classifier_hidden_layer")
 
             self.hidden_state = tf.nn.dropout(self.hidden_state, dropout_keep)
             self.out = tfc_layers.fully_connected(self.hidden_state,
@@ -204,21 +254,6 @@ class FiLM_Oracle(ResnetModel):
 
             print('Model... build!')
 
-    def concat_emb(self, config, name, emb):
-        #TODO factorize code
-        if config["film_input"][name]:
-            if self.film_input is None:
-                self.film_input = emb
-            else:
-                self.film_input = tf.concat([self.film_input, emb], axis=1)
-
-        if config["mlp_input"][name]:
-            if self.mlp_input is None:
-                self.mlp_input = emb
-            else:
-                self.mlp_input = tf.concat([self.mlp_input, emb], axis=1)
-
-
 
     def get_loss(self):
         return self.loss
@@ -228,126 +263,9 @@ class FiLM_Oracle(ResnetModel):
 
 
 if __name__ == "__main__":
-    FiLM_Oracle({
 
-    "name" : "CLEVR with FiLM",
-    "type" : "film",
-    "split_question" : True,
+    import json
+    with open("../../../../config/oracle/config.film.json", 'rb') as f_config:
+        config = json.load(f_config)
 
-    "film_input":
-    {
-      "question": True,
-      "category": True,
-      "spatial": False,
-      "mask": False,
-    },
-
-    "mlp_input":
-    {
-      "question": False,
-      "category": True,
-      "spatial": True,
-      "mask": False
-    },
-
-
-    "crop":
-    {
-      "image_input": "raw",
-      "dim": [224, 224, 3],
-      "normalize": False,
-
-      "attention" : {
-        "mode": "none"
-      },
-
-      "stem": {
-            "spatial_location": True,
-            "mask": True,
-            "conv_out": 128,
-            "conv_kernel": [3, 3]
-        },
-
-        "resblock": {
-            "no_resblock": 2,
-            "spatial_location": True,
-            "mask": True,
-            "kernel1": [1, 1],
-            "kernel2": [3, 3]
-        },
-
-        "classifier": {
-            "spatial_location": True,
-            "mask": False,
-            "conv_out": 256,
-            "conv_kernel": [1, 1],
-
-            "attention": {
-                "mode": "max",
-            }
-        }
-
-    },
-
-    "image":
-    {
-      "image_input": "conv",
-      "dim": [14, 14, 2048],
-      "normalize": False,
-
-      "attention" : {
-        "mode": "none"
-      },
-
-      "stem": {
-            "spatial_location": True,
-            "mask": True,
-            "conv_out": 256,
-            "conv_kernel": [3, 3]
-        },
-
-        "resblock": {
-            "no_resblock": 2,
-            "spatial_location": True,
-            "mask": True,
-            "kernel1": [1, 1],
-            "kernel2": [3, 3]
-        },
-
-        "classifier": {
-            "spatial_location": True,
-            "mask": False,
-            "conv_out": 512,
-            "conv_kernel": [1, 1],
-
-            "attention": {
-                "mode": "max",
-            }
-        }
-    },
-
-
-    "question": {
-      "word_embedding_dim": 300,
-      "rnn_state_size": 2048,
-      "glove" : False,
-      "bidirectional" : True,
-      "max_pool" : False
-    },
-
-    "category": {
-      "n_categories": 90,
-      "embedding_dim": 200
-    },
-
-    "spatial": {
-      "no_mlp_units": 30
-    },
-
-
-    "final_layer" :
-    {
-    "no_mlp_units": 1024,
-    }
-
-  }, no_words=354, no_answers=3)
+    FiLM_Oracle(config["model"], no_words=354, no_answers=3)

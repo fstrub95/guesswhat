@@ -5,7 +5,7 @@ import numpy as np
 
 from generic.data_provider.dataset import AbstractDataset
 
-use_100 = False
+use_100 = True
 
 try:
     import cocoapi.PythonAPI.pycocotools.mask as cocoapi
@@ -210,12 +210,8 @@ class CropDataset(AbstractDataset):
         super(CropDataset, self).__init__(new_games)
 
     @classmethod
-    def expand_game_objects(cls, folder, which_set, image_builder=None, crop_builder=None):
-        return CropDataset(Dataset(folder, which_set, image_builder, crop_builder), expand_objects=True)
-
-    @classmethod
-    def keep_game_objects(cls, folder, which_set, image_builder=None, crop_builder=None):
-        return CropDataset(Dataset(folder, which_set, image_builder, crop_builder), expand_objects=False)
+    def load(cls, folder, which_set, image_builder=None, crop_builder=None, expand_objects=False):
+        return CropDataset(Dataset(folder, which_set, image_builder, crop_builder), expand_objects=expand_objects)
 
     def split(self, game):
         games = []

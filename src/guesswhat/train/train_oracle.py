@@ -48,7 +48,6 @@ if __name__ == '__main__':
     logger = logging.getLogger()
 
     # Load config
-    resnet_version = config['model']["image"].get('resnet_version', 50)
     finetune = config["model"]["image"].get('finetune', list())
     split_question = config["model"]["split_question"]
     batch_size = config['optimizer']['batch_size']
@@ -81,13 +80,13 @@ if __name__ == '__main__':
 
     # Load dictionary
     logger.info('Loading dictionary..')
-    tokenizer = GWTokenizer(os.path.join(args.data_dir, args.dict_file))
+    tokenizer = GWTokenizer(args.dict_file)
 
     # Load glove
     glove = None
     if config["model"]["question"]['glove']:
         logger.info('Loading glove..')
-        glove = GloveEmbeddings(os.path.join(args.data_dir, args.glove_file))
+        glove = GloveEmbeddings(args.glove_file)
 
     # Build Network
     logger.info('Building network..')
@@ -119,6 +118,7 @@ if __name__ == '__main__':
 
         sess.run(tf.global_variables_initializer())
         if use_resnet:
+            resnet_version = config['model']["image"]['resnet_version']
             resnet_saver.restore(sess, os.path.join(args.data_dir, 'resnet_v1_{}.ckpt'.format(resnet_version)))
 
         start_epoch = load_checkpoint(sess, saver, args, save_path)

@@ -25,27 +25,6 @@ class OracleBatchifier(AbstractBatchifier):
         if len(self.status) > 0:
             games = [g for g in games if g.status in self.status]
 
-        if self.split_question:
-            new_games = []
-            for g in games:
-                for i, q, a in zip(g.question_ids, g.questions, g.answers):
-                    new_game = copy.copy(g)
-                    new_game.questions = [q]
-                    new_game.question_ids = [i]
-                    new_game.answers = [a]
-                    new_games.append(new_game)
-            games = new_games
-        else:
-            new_games = []
-            for g in games:
-                for i in range(len(g.question_ids)):
-                    new_game = copy.copy(g)
-                    new_game.questions = g.questions[:i+1]
-                    new_game.question_ids = g.question_ids[:i+1]
-                    new_game.answers = g.answers[:i+1]
-                    new_games.append(new_game)
-            games = new_games
-
         if self.ignore_NA:
             games = [g for g in games if g.answers[-1] != "N/A"]
 
