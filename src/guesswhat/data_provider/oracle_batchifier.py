@@ -1,11 +1,10 @@
 import numpy as np
 import collections
 from PIL import Image
-import copy
 
 from generic.data_provider.batchifier import AbstractBatchifier
 
-from generic.data_provider.image_preprocessors import get_spatial_feat, resize_image
+from generic.data_provider.image_preprocessors import get_spatial_feat, resize_image, scaled_crop_and_pad
 from generic.data_provider.nlp_utils import padder, padder_3d
 from itertools import chain
 
@@ -75,15 +74,26 @@ class OracleBatchifier(AbstractBatchifier):
             if 'image' in sources:
                 batch['image'].append(image.get_image())
 
-            if 'mask' in sources:
+            if 'img_mask' in sources:
                 assert "image" in batch, "mask input require the image source"
                 mask = game.object.get_mask()
-                mask = mask.astype(np.float32)
+
                 ft_width, ft_height = batch['image'][-1].shape[1],\
                                      batch['image'][-1].shape[0] # Use the image feature size (not the original img size)
 
                 mask = resize_image(Image.fromarray(mask), height=ft_height, width=ft_width)
-                batch['mask'].append(np.array(mask))
+                batch['img_mask'].append(np.array(mask))
+
+            if 'crop_mask' in sources:
+                assert "crop" in batch, "mask input require the crop source"
+                cmask = game.object.get_mask()
+
+                ft_width, ft_height = batch['crop'][-1].shape[1],\
+                                     batch['crop'][-1].shape[0] # Use the crop feature size (not the original img size)
+
+                cmask = scaled_crop_and_pad(raw_img=Image.fromarray(cmask), bbox=game.object.bbox, scale=game.object.crop_scale)
+                cmask = resize_image(cmask, height=ft_height, width=ft_width)
+                batch['crop_mask'].append(np.array(cmask))
 
 
         # pad the questions

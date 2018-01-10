@@ -107,7 +107,7 @@ class FiLM_Oracle(ResnetModel):
 
                 else:
                     # Compute object mask
-                    self._mask = tf.placeholder(tf.float32, self.image_out.get_shape()[:3], name='mask')
+                    self._mask = tf.placeholder(tf.float32, self.image_out.get_shape()[:3], name='img_mask')
                     self._mask = tf.expand_dims(self._mask, axis=-1)
 
                     self.film_img_input = []
@@ -170,9 +170,8 @@ class FiLM_Oracle(ResnetModel):
 
                 else:
 
-                    # TODO Compute object mask
-                    # self._mask_crop = tf.placeholder(tf.float32, self.image_out.get_shape()[:3], name='mask_crop')
-                    # self._mask_crop = tf.expand_dims(self._mask, axis=-1)
+                    self._mask_crop = tf.placeholder(tf.float32, self.image_out.get_shape()[:3], name='crop_mask')
+                    self._mask_crop = tf.expand_dims(self._mask_crop, axis=-1)
 
                     self.film_crop_input = []
                     with tf.variable_scope("image_film_input", reuse=reuse):
@@ -186,20 +185,29 @@ class FiLM_Oracle(ResnetModel):
                         if config["crop"]["film_input"]["spatial"]:
                             self.film_crop_input.append(spatial_emb)
 
-                        # if config["crop"]["film_input"]["mask"]:
-                        #     mask_dim = int(self.crop_out.get_shape()[1]) * int(self.crop_out.get_shape()[2])
-                        #     flat_mask = tf.reshape(self._mask_crop, shape=[-1, mask_dim])
-                        #     self.film_crop_input.append(flat_mask)
+                        if config["crop"]["film_input"]["mask"]:
+                            mask_dim = int(self.crop_out.get_shape()[1]) * int(self.crop_out.get_shape()[2])
+                            flat_mask = tf.reshape(self._mask_crop, shape=[-1, mask_dim])
+                            self.film_crop_input.append(flat_mask)
 
                         self.film_crop_input = tf.concat(self.film_crop_input, axis=1)
 
                     with tf.variable_scope("crop_film_stack", reuse=reuse):
+
+                        def append_extra_features(features, config):
+                            if config["spatial_location"]: # add the pixel location as two additional feature map
+                                features = ft_utils.append_spatial_location(features)
+                            if config["mask"]: # add the mask on the object as one additional feature map
+                                features = tf.concat([features, self._mask_crop], axis=3)
+                            return features
+
                         self.film_crop_stack = FiLM_Stack(image=self.crop_out,
                                                           film_input=self.film_crop_input,
                                                           attention_input=self.last_rnn_state,
                                                           is_training=self._is_training,
                                                           dropout_keep=dropout_keep,
                                                           config=config["crop"]["film_block"],
+                                                          append_extra_features=append_extra_features,
                                                           reuse=reuse)
 
                     self.classifier_input.append(self.film_crop_stack.get())

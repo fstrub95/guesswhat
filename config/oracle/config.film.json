@@ -42,7 +42,7 @@
     "image":
     {
       "image_input": "conv",
-      "dim": [14, 14, 1048],
+      "dim": [14, 14, 1024],
       "normalize": false,
 
       "attention" : {
@@ -94,8 +94,9 @@
     "crop":
     {
       "image_input": "conv",
-      "dim": [14, 14, 1048],
+      "dim": [14, 14, 1024],
       "normalize": false,
+      "scale" : 1.1,
 
       "attention" : {
         "mode": "none"
