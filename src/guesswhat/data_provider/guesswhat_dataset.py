@@ -95,6 +95,8 @@ class Object:
         self.area = area
         self.segment = segment
 
+
+
         # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocotools/mask.py
         self.rle_mask = None
         if use_coco:
@@ -105,13 +107,17 @@ class Object:
         if crop_builder is not None:
             filename = "{}.jpg".format(image.id)
             self.crop_loader = crop_builder.build(id, filename=filename, which_set=which_set, bbox=bbox)
+            self.crop_scale = crop_builder.scale
 
     def get_mask(self):
         assert self.rle_mask is not None, "Mask option are not available, please compile and link cocoapi (cf. cocoapi/PythonAPI/setup.py)"
         tmp_mask = cocoapi.decode(self.rle_mask)
         if len(tmp_mask.shape) > 2: # concatenate several mask into a single one
             tmp_mask = np.sum(tmp_mask, axis=2)
-        return tmp_mask
+            tmp_mask[tmp_mask > 1] = 1
+
+        return tmp_mask.astype(np.float32)
+
 
     def get_crop(self, **kwargs):
         assert self.crop_loader is not None, "Invalid crop loader"

@@ -39,7 +39,7 @@ if __name__ == '__main__':
     parser.add_argument("-crop_dir", type=str, help='Directory with images')
     parser.add_argument("-load_checkpoint", type=str, help="Load model parameters from specified checkpoint")
     parser.add_argument("-continue_exp", type=bool, default=False, help="Continue previously started experiment?")
-    parser.add_argument("-gpu_ratio", type=float, default=1., help="How many GPU ram is required? (ratio)")
+    parser.add_argument("-gpu_ratio", type=float, default=0.48, help="How many GPU ram is required? (ratio)")
     parser.add_argument("-no_thread", type=int, default=2, help="No thread to load batch")
     parser.add_argument("-no_games_to_load", type=int, help="No games to use during training Default : all")
 
@@ -178,9 +178,9 @@ if __name__ == '__main__':
 
         [test_loss, test_accuracy] = evaluator.process(sess, test_iterator, outputs, listener=oracle_listener)
 
-        dump_oracle(oracle_listener.get_answers(), games=testset.games,
-                                  save_path=save_path,
-                                  name="oracle")
+        #dump_oracle(oracle_listener.get_answers(), games=testset.games,
+        #                          save_path=save_path,
+        #                          name="oracle")
 
         logger.info("Testing loss : {}".format(test_loss))
         logger.info("Testing error: {}".format(1-test_accuracy))
