@@ -176,9 +176,9 @@ if __name__ == '__main__':
 
         [test_loss, test_accuracy] = evaluator.process(sess, test_iterator, outputs, listener=oracle_listener)
 
-        dump_oracle(oracle_listener.get_answers(), games=testset.games,
-                                  save_path=save_path,
-                                  name="oracle")
+        #dump_oracle(oracle_listener.get_answers(), games=testset.games,
+        #                          save_path=save_path,
+        #                          name="oracle")
 
         logger.info("Testing loss : {}".format(test_loss))
         logger.info("Testing error: {}".format(1-test_accuracy))

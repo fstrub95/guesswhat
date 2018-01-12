@@ -5,7 +5,7 @@ import numpy as np
 
 from generic.data_provider.dataset import AbstractDataset
 
-use_100 = False
+use_100 = True
 
 try:
     import cocoapi.PythonAPI.pycocotools.mask as cocoapi
