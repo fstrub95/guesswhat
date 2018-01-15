@@ -41,6 +41,8 @@ if __name__ == '__main__':
     parser.add_argument("-continue_exp", type=bool, default=False, help="Continue previously started experiment?")
     parser.add_argument("-gpu_ratio", type=float, default=0.48, help="How many GPU ram is required? (ratio)")
     parser.add_argument("-no_thread", type=int, default=2, help="No thread to load batch")
+    parser.add_argument("-no_games_to_load", type=int, help="No games to use during training Default : all")
+
 
     args = parser.parse_args()
 
@@ -76,9 +78,9 @@ if __name__ == '__main__':
 
     # Load data
     logger.info('Loading data..')
-    trainset = OracleDataset.load(args.data_dir, "train", image_builder, crop_builder, split_question)
-    validset = OracleDataset.load(args.data_dir, "valid", image_builder, crop_builder, split_question)
-    testset = OracleDataset.load(args.data_dir, "test", image_builder, crop_builder, split_question)
+    trainset = OracleDataset.load(args.data_dir, "train", image_builder, crop_builder, split_question, args.no_games_to_load)
+    validset = OracleDataset.load(args.data_dir, "valid", image_builder, crop_builder, split_question, args.no_games_to_load)
+    testset = OracleDataset.load(args.data_dir, "test", image_builder, crop_builder, split_question, args.no_games_to_load)
 
     # Load dictionary
     logger.info('Loading dictionary..')
