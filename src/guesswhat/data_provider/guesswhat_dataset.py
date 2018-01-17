@@ -159,9 +159,9 @@ class Dataset(AbstractDataset):
 
                 # If no_games_to_load is defined : Loading a certain number of games
                 if len(games) > games_to_load:
-                    print("Loading partial games (Don't use --no_games_to_load if you want to load all games")
                     break
 
+        print("{} games were loaded...".format(len(games) ))
         super(Dataset, self).__init__(games)
 
 

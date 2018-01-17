@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import collections
 
 import tensorflow as tf
 
@@ -108,6 +109,12 @@ if __name__ == '__main__':
     saver = tf.train.Saver()
     resnet_saver = None
 
+    # Store experiments
+    data = collections.defaultdict(list)
+    data["hash_id"] = exp_identifier
+    data["config"] = config
+    data["args"] = args
+
     # Retrieve only resnet variabes
     if use_resnet:
         resnet_saver = create_resnet_saver([network])
@@ -157,13 +164,23 @@ if __name__ == '__main__':
             logger.info("Validation loss : {}".format(valid_loss))
             logger.info("Validation error: {}".format(1-valid_accuracy))
 
-            if valid_accuracy > best_val_err:
-                best_train_err = train_accuracy
-                best_val_err = valid_accuracy
-                saver.save(sess, save_path.format('params.ckpt'))
-                logger.info("Oracle checkpoint saved...")
 
-                pickle_dump({'epoch': t}, save_path.format('status.pkl'))
+            data["loss"]["train"].append(train_loss)
+            data["loss"]["valid"].append(valid_loss)
+            data["error"]["train"].append(1-train_accuracy)
+            data["error"]["valid"].append(1-valid_accuracy)
+
+            if valid_accuracy > best_val_err:
+                    best_train_err = train_accuracy
+                    best_val_err = valid_accuracy
+                    saver.save(sess, save_path.format('params.ckpt'))
+                    logger.info("Oracle checkpoint saved...")
+
+                    data["ckpt_epoch"].append(t)
+
+                    pickle_dump(data, save_path.format('status.pkl'))
+
+
 
         # Load early stopping
         saver.restore(sess, save_path.format('params.ckpt'))
@@ -186,6 +203,10 @@ if __name__ == '__main__':
 
         logger.info("Testing loss : {}".format(test_loss))
         logger.info("Testing error: {}".format(1-test_accuracy))
+
+        data["loss"]["test"] = test_loss
+        data["loss"]["error"] = (1-test_accuracy)
+        pickle_dump(data, save_path.format('status.pkl'))
 
         # batchifier.ignore_NA = True
         # test_iterator = Iterator(testset, pool=cpu_pool, batch_size=batch_size * 2, batchifier=batchifier, shuffle=False)

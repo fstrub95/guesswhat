@@ -4,7 +4,6 @@ import tensorflow.contrib.layers as tfc_layers
 import neural_toolbox.ft_utils as ft_utils
 import neural_toolbox.rnn as rnn
 
-from generic.utils.config import find_nested_conf
 from generic.tf_factory.image_factory import get_image_features
 
 from generic.tf_utils.abstract_network import ResnetModel
@@ -223,30 +222,31 @@ class FiLM_Oracle(ResnetModel):
             #   FINAL LAYER
             #####################
 
-            if config["classifier"]["inputs"]["question"]:
-                self.classifier_input.append(self.last_rnn_state)
+            with tf.variable_scope("classifier", reuse=reuse):
+                if config["classifier"]["inputs"]["question"]:
+                    self.classifier_input.append(self.last_rnn_state)
 
-            if config["classifier"]["inputs"]["category"]:
-                self.classifier_input.append(cat_emb)
+                if config["classifier"]["inputs"]["category"]:
+                    self.classifier_input.append(cat_emb)
 
-            if config["classifier"]["inputs"]["spatial"]:
-                self.classifier_input.append(spatial_emb)
+                if config["classifier"]["inputs"]["spatial"]:
+                    self.classifier_input.append(spatial_emb)
 
-            assert len(self.classifier_input) > 0, "Please provide some inputs for the classifier!!!"
-            self.classifier_input = tf.concat(self.classifier_input, axis=1)
+                assert len(self.classifier_input) > 0, "Please provide some inputs for the classifier!!!"
+                self.classifier_input = tf.concat(self.classifier_input, axis=1)
 
-            self.hidden_state = tfc_layers.fully_connected(self.classifier_input,
-                                                           num_outputs=config["classifier"]["no_mlp_units"],
-                                                           activation_fn=tf.nn.relu,
-                                                           reuse=reuse,
-                                                           scope="classifier_hidden_layer")
+                self.hidden_state = tfc_layers.fully_connected(self.classifier_input,
+                                                               num_outputs=config["classifier"]["no_mlp_units"],
+                                                               activation_fn=tf.nn.relu,
+                                                               reuse=reuse,
+                                                               scope="classifier_hidden_layer")
 
-            self.hidden_state = tf.nn.dropout(self.hidden_state, dropout_keep)
-            self.out = tfc_layers.fully_connected(self.hidden_state,
-                                                         num_outputs=no_answers,
-                                                         activation_fn=None,
-                                                         reuse=reuse,
-                                                         scope="classifier_softmax_layer")
+                self.hidden_state = tf.nn.dropout(self.hidden_state, dropout_keep)
+                self.out = tfc_layers.fully_connected(self.hidden_state,
+                                                             num_outputs=no_answers,
+                                                             activation_fn=None,
+                                                             reuse=reuse,
+                                                             scope="classifier_softmax_layer")
 
             #####################
             #   Loss

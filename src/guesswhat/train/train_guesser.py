@@ -1,7 +1,7 @@
 import argparse
 import logging
 import os
-from multiprocessing import Pool
+import collections
 
 import tensorflow as tf
 
@@ -85,6 +85,12 @@ if __name__ == '__main__':
     batch_size = config['optimizer']['batch_size']
     no_epoch = config["optimizer"]["no_epoch"]
 
+    # Store experiments
+    data = collections.defaultdict(list)
+    data["hash_id"] = exp_identifier
+    data["config"] = config
+    data["args"] = args
+
     # create a saver to store/load checkpoint
     saver = tf.train.Saver()
 
@@ -134,13 +140,20 @@ if __name__ == '__main__':
             logger.info("Validation loss: {}".format(valid_loss))
             logger.info("Validation error: {}".format(1-valid_accuracy))
 
+            data["loss"]["train"].append(train_loss)
+            data["loss"]["valid"].append(valid_loss)
+            data["error"]["train"].append(1-train_accuracy)
+            data["error"]["valid"].append(1-valid_accuracy)
+
             if valid_accuracy > best_val_err:
                 best_train_err = train_accuracy
                 best_val_err = valid_accuracy
                 saver.save(sess, save_path.format('params.ckpt'))
                 logger.info("Guesser checkpoint saved...")
 
-                pickle_dump({'epoch': t}, save_path.format('status.pkl'))
+                data["ckpt_epoch"].append(t)
+
+                pickle_dump(data, save_path.format('status.pkl'))
 
         # Load early stopping
         saver.restore(sess, save_path.format('params.ckpt'))
@@ -153,3 +166,7 @@ if __name__ == '__main__':
 
         logger.info("Testing loss: {}".format(test_loss))
         logger.info("Testing error: {}".format(1-test_accuracy))
+
+        data["loss"]["test"] = test_loss
+        data["loss"]["error"] = (1-test_accuracy)
+        pickle_dump(data, save_path.format('status.pkl'))

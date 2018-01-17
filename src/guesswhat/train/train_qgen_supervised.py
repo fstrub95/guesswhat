@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 from multiprocessing import Pool
+import collections
 
 import tensorflow as tf
 
@@ -12,6 +13,7 @@ from generic.tf_utils.ckpt_loader import load_checkpoint
 from generic.utils.config import load_config
 from generic.utils.file_handlers import pickle_dump
 from generic.data_provider.image_loader import get_img_builder
+from generic.data_provider.nlp_utils import GloveEmbeddings
 
 from guesswhat.data_provider.guesswhat_dataset import Dataset
 from guesswhat.data_provider.questioner_batchifier import QuestionerBatchifier
@@ -31,6 +33,7 @@ if __name__ == '__main__':
     parser.add_argument("-exp_dir", type=str, help="Directory in which experiments are stored")
     parser.add_argument("-config", type=str, help='Config file')
     parser.add_argument("-dict_file", type=str, default="dict.json", help="Dictionary file name")
+    parser.add_argument("-glove_file", type=str, default="glove_dict.pkl", help="Glove file name")
     parser.add_argument("-img_dir", type=str, help='Directory with images')
     parser.add_argument("-load_checkpoint", type=str, help="Load model parameters from specified checkpoint")
     parser.add_argument("-continue_exp", type=bool, default=False, help="Continue previously started experiment?")
@@ -61,6 +64,12 @@ if __name__ == '__main__':
     logger.info('Loading dictionary..')
     tokenizer = GWTokenizer(os.path.join(args.data_dir, args.dict_file))
 
+    # Load glove
+    glove = None
+    if config["model"]["dialogue"]['glove']:
+        logger.info('Loading glove..')
+        glove = GloveEmbeddings(args.glove_file)
+
     # Build Network
     logger.info('Building network..')
     network = QGenNetworkLSTM(config["model"], num_words=tokenizer.no_words, policy_gradient=False)
@@ -76,6 +85,12 @@ if __name__ == '__main__':
     # Load config
     batch_size = config['optimizer']['batch_size']
     no_epoch = config["optimizer"]["no_epoch"]
+
+    # Store experiments
+    data = collections.defaultdict(list)
+    data["hash_id"] = exp_identifier
+    data["config"] = config
+    data["args"] = args
 
     # create a saver to store/load checkpoint
     saver = tf.train.Saver()
@@ -117,13 +132,18 @@ if __name__ == '__main__':
             logger.info("Training loss: {}".format(train_loss))
             logger.info("Validation loss: {}".format(valid_loss))
 
+            logger.info("Training loss: {}".format(train_loss))
+            logger.info("Validation loss: {}".format(valid_loss))
+
             if valid_loss < best_val_loss:
                 best_train_loss = train_loss
                 best_val_loss = valid_loss
                 saver.save(sess, save_path.format('params.ckpt'))
                 logger.info("Guesser checkpoint saved...")
 
-                pickle_dump({'epoch': t}, save_path.format('status.pkl'))
+                data["ckpt_epoch"].append(t)
+
+                pickle_dump(data, save_path.format('status.pkl'))
 
         # Load early stopping
         saver.restore(sess, save_path.format('params.ckpt'))
@@ -134,3 +154,6 @@ if __name__ == '__main__':
         [test_loss, _] = evaluator.process(sess, test_iterator, outputs)
 
         logger.info("Testing loss: {}".format(test_loss))
+
+        data["loss"]["test"] = test_loss
+        pickle_dump(data, save_path.format('status.pkl'))
