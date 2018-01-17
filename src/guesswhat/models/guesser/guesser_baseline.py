@@ -20,6 +20,15 @@ class GuesserNetwork(AbstractNetwork):
                                    lambda: tf.constant(dropout_keep_scalar),
                                    lambda: tf.constant(1.0))
 
+            # In config file, if the size of the projection is not specified for dialogue, don't project it at all
+            # The object will be projected to match the lstm output
+            if config['dialog_emb_dim'] != 0:
+                project_dialogue = True
+                dialog_emb_dim = config['dialog_emb_dim']
+            else:
+                project_dialogue = False
+                dialog_emb_dim = config['num_lstm_units']
+
             # Dialogues
             self._dialogues = tf.placeholder(tf.int32, [batch_size, None], name='dialogues')
             self._seq_length = tf.placeholder(tf.int32, [batch_size], name='seq_length')
@@ -32,13 +41,14 @@ class GuesserNetwork(AbstractNetwork):
             # Targets
             self._targets = tf.placeholder(tf.int32, [batch_size], name="targets_index")
 
+            # Embedding object categories
             self.object_cats_emb = tfc_layers.embed_sequence(
                 ids=self._obj_cats,
                 vocab_size=config['no_categories'] + 1,
                 embed_dim=config['cat_emb_dim'],
                 scope="cat_embedding",
                 reuse=reuse)
-
+            # Adding spatial coordinate (should be optionnal)
             self.objects_input = tf.concat([self.object_cats_emb, self._obj_spats], axis=2)
             self.flat_objects_inp = tf.reshape(self.objects_input, [-1, config['cat_emb_dim'] + config['spat_dim']])
 
@@ -50,11 +60,11 @@ class GuesserNetwork(AbstractNetwork):
                     scope='l1')
                 h2 = utils.fully_connected(
                     h1,
-                    n_out=config['dialog_emb_dim'],
+                    n_out=dialog_emb_dim,
                     activation='relu',
                     scope='l2')
 
-            obj_embs = tf.reshape(h2, [-1, tf.shape(self._obj_cats)[1], config['dialog_emb_dim']])
+            obj_embs = tf.reshape(h2, [-1, tf.shape(self._obj_cats)[1], dialog_emb_dim])
 
             # Compute the word embedding
             word_emb = tfc_layers.embed_sequence(
@@ -85,13 +95,14 @@ class GuesserNetwork(AbstractNetwork):
 
                 self.visual_dialogue_embedding = tf.concat([self.visual_dialogue_embedding , self.image_out], axis=-1)
 
-            #
-            self.visual_dialogue_projection = utils.fully_connected(
-                self.visual_dialogue_embedding,
-                n_out=config['dialog_emb_dim'],
-                activation='relu',
-                scope='visual_dialogue_projection')
-
+            if project_dialogue:
+                self.visual_dialogue_projection = utils.fully_connected(
+                    self.visual_dialogue_embedding,
+                    n_out=dialog_emb_dim,
+                    activation='relu',
+                    scope='visual_dialogue_projection')
+            else:
+                self.visual_dialogue_projection = self.visual_dialogue_embedding
 
             # Compute dot product
             self.visual_dialogue_projection = tf.expand_dims(self.visual_dialogue_projection, axis=-1)

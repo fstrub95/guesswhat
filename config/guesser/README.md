@@ -21,7 +21,8 @@ The keyword "model" refers to the model architecture of the guesser:
     "spat_dim": 8,         # dimension of the spatial information
     "obj_emb_hidden": 512,  # number of hidden units to build the full object embedding
 
-    "dialog_emb_dim": 512, # Projection size for the dialogue and the objects
+    "dialog_emb_dim": 512, # Projection size for the dialogue and the objects, if equal zero, then the dialogue is
+                           # not projected and the object is projected to match lstm output size
   },
 ```
 
