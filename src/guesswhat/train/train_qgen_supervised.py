@@ -38,6 +38,7 @@ if __name__ == '__main__':
     parser.add_argument("-continue_exp", type=bool, default=False, help="Continue previously started experiment?")
     parser.add_argument("-gpu_ratio", type=float, default=1., help="How many GPU ram is required? (ratio)")
     parser.add_argument("-no_thread", type=int, default=1, help="No thread to load batch")
+    parser.add_argument("-no_games_to_load", type=int, help="Number of games to use during training Default : all")
 
     args = parser.parse_args()
     config, exp_identifier, save_path = load_config(args.config, args.exp_dir, args)
@@ -54,9 +55,9 @@ if __name__ == '__main__':
 
     # Load data
     logger.info('Loading data..')
-    trainset = Dataset(args.data_dir, "train", image_loader, crop_loader)
-    validset = Dataset(args.data_dir, "valid", image_loader, crop_loader)
-    testset = Dataset(args.data_dir, "test", image_loader, crop_loader)
+    trainset = Dataset(args.data_dir, "train", image_loader, crop_loader, args.no_games_to_load)
+    validset = Dataset(args.data_dir, "valid", image_loader, crop_loader, args.no_games_to_load)
+    testset = Dataset(args.data_dir, "test", image_loader, crop_loader, args.no_games_to_load)
 
     # Load dictionary
     logger.info('Loading dictionary..')

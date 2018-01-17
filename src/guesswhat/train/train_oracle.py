@@ -41,11 +41,15 @@ if __name__ == '__main__':
     parser.add_argument("-continue_exp", type=bool, default=False, help="Continue previously started experiment?")
     parser.add_argument("-gpu_ratio", type=float, default=0.48, help="How many GPU ram is required? (ratio)")
     parser.add_argument("-no_thread", type=int, default=2, help="No thread to load batch")
+    parser.add_argument("-no_games_to_load", type=int, help="No games to use during training Default : all")
+
 
     args = parser.parse_args()
 
     config, exp_identifier, save_path = load_config(args.config, args.exp_dir, args)
     logger = logging.getLogger()
+
+    logger.info("Config name : {}".format(config["model"]["name"]))
 
     # Load config
     finetune = config["model"]["image"].get('finetune', list())
@@ -171,7 +175,7 @@ if __name__ == '__main__':
 
         # Create     Listener
         oracle_listener = OracleListener(tokenizer=tokenizer, require=network.prediction)
-        batchifier.status = ["success", "failure", "incomplete"]
+        # batchifier.status = ["success", "failure", "incomplete"]
 
         cpu_pool = create_cpu_pool(args.no_thread, use_process=use_process)
         test_iterator = Iterator(testset, pool=cpu_pool,
@@ -188,9 +192,9 @@ if __name__ == '__main__':
         logger.info("Testing loss : {}".format(test_loss))
         logger.info("Testing error: {}".format(1-test_accuracy))
 
-        batchifier.ignore_NA = True
-        test_iterator = Iterator(testset, pool=cpu_pool, batch_size=batch_size * 2, batchifier=batchifier, shuffle=False)
+        # batchifier.ignore_NA = True
+        # test_iterator = Iterator(testset, pool=cpu_pool, batch_size=batch_size * 2, batchifier=batchifier, shuffle=False)
 
-        [test_loss, test_accuracy] = evaluator.process(sess, test_iterator, outputs)
-        logger.info("Testing loss  (no N/A): {}".format(test_loss))
-        logger.info("Testing error (no N/A): {}".format(1-test_accuracy))
+        # [test_loss, test_accuracy] = evaluator.process(sess, test_iterator, outputs)
+        # logger.info("Testing loss  (no N/A): {}".format(test_loss))
+        # logger.info("Testing error (no N/A): {}".format(1-test_accuracy))

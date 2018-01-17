@@ -5,8 +5,6 @@ import numpy as np
 
 from generic.data_provider.dataset import AbstractDataset
 
-use_100 = True
-
 try:
     import cocoapi.PythonAPI.pycocotools.mask as cocoapi
 
@@ -125,10 +123,14 @@ class Object:
 
 class Dataset(AbstractDataset):
     """Loads the dataset."""
-
-    def __init__(self, folder, which_set, image_builder=None, crop_builder=None):
+    def __init__(self, folder, which_set, image_builder=None, crop_builder=None, games_to_load=None):
         file = '{}/guesswhat.{}.jsonl.gz'.format(folder, which_set)
         games = []
+
+        if games_to_load is None:
+            games_to_load = float("inf")
+            # infinity, meaning all games are taken for training because :
+            # len(games) > games_to_load      will never be True
 
         self.set = which_set
 
@@ -149,7 +151,10 @@ class Dataset(AbstractDataset):
 
                 games.append(g)
 
-                if use_100 and len(games) > 200: break
+                # If no_games_to_load is defined : Loading a certain number of games
+                if len(games) > games_to_load:
+                    print("Loading partial games (Don't use --no_games_to_load if you want to load all games")
+                    break
 
         super(Dataset, self).__init__(games)
 
