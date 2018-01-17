@@ -10,7 +10,7 @@ import io
 import json
 import os
 
-from guesswhat.data_provider.guesswhat_dataset import OracleDataset
+from guesswhat.data_provider.guesswhat_dataset import Dataset
 from nltk.tokenize import TweetTokenizer
 
 if __name__ == '__main__':
@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
 
     print("Processing train dataset...")
-    trainset = OracleDataset.load(args.data_dir, "train")
+    trainset = Dataset(args.data_dir, "train")
     for game in trainset.games:
         question = game.questions[0]
         tokens = tknzr.tokenize(question)

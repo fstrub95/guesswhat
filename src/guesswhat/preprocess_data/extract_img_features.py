@@ -9,14 +9,14 @@ import tensorflow.contrib.slim.python.slim.nets.vgg as vgg
 
 from generic.data_provider.image_loader import RawImageBuilder, RawCropBuilder
 from generic.preprocess_data.extract_img_features import extract_features
-from guesswhat.data_provider.guesswhat_dataset import OracleDataset, CropDataset
+from guesswhat.data_provider.guesswhat_dataset import Dataset, CropDataset
 from guesswhat.data_provider.oracle_batchifier import OracleBatchifier
 from neural_toolbox import resnet
 
 parser = argparse.ArgumentParser('Feature extractor! ')
 
 parser.add_argument("-img_dir", type=str, required=True, help="Input Image folder")
-parser.add_argument("-data_dir", type=str, required=True,help="Dataset folder")
+parser.add_argument("-data_dir", type=str, required=True, help="Dataset folder")
 parser.add_argument("-set_type", type=list, default=["train", "valid", "test"], help='Select the dataset to dump')
 
 parser.add_argument("-out_dir", type=str, required=True, help="Output folder")
@@ -27,7 +27,7 @@ parser.add_argument("-ckpt", type=str, required=True, help="Path for network che
 parser.add_argument("-feature_name", type=str, default="", help="Pick the name of the network features default=(fc8 - block4)")
 
 parser.add_argument("-mode", type=str, choices=["img", "crop", "crop_all"], help="Select to either dump the img/crop feature")
-parser.add_argument("-subtract_mean", type=lambda x:bool(strtobool(x)), default="True", help="Preprocess the image by substracting the mean")
+parser.add_argument("-subtract_mean", type=lambda x: bool(strtobool(x)), default="True", help="Preprocess the image by substracting the mean")
 parser.add_argument("-img_size", type=int, default=224, help="image size (pixels)")
 parser.add_argument("-crop_scale", type=float, default=1.1, help="crop scale around the bbox")
 parser.add_argument("-batch_size", type=int, default=64, help="Batch size to extract features")
@@ -37,23 +37,19 @@ parser.add_argument("-no_thread", type=int, default=2, help="No thread to load b
 
 args = parser.parse_args()
 
-
-
-
 # define image
 if args.subtract_mean:
     channel_mean = np.array([123.68, 116.779, 103.939])
 else:
     channel_mean = None
 
-
 # define the image loader (raw vs crop)
-dataset_args = {"folder" : args.data_dir}
+dataset_args = {"folder": args.data_dir}
 
 if args.mode == "img":
     images = tf.placeholder(tf.float32, [None, args.img_size, args.img_size, 3], name='image')
     source = 'image'
-    dataset_cstor = OracleDataset.load
+    dataset_cstor = Dataset
     image_builder = RawImageBuilder(args.img_dir,
                                     height=args.img_size,
                                     width=args.img_size,
@@ -78,8 +74,6 @@ elif "crop" in args.mode:
 else:
     assert False, "Invalid mode: {}".format(args.mode)
 
-
-
 print("Create networks...")
 if args.network == "resnet":
     ft_output = resnet.create_resnet(images,
@@ -94,18 +88,15 @@ elif args.network == "vgg":
 else:
     assert False, "Incorrect Network"
 
-
-
-
 extract_features(
-    img_input = images,
-    ft_output = ft_output,
-    dataset_cstor = dataset_cstor,
-    dataset_args = dataset_args,
-    batchifier_cstor = OracleBatchifier,
-    out_dir = args.out_dir,
-    set_type = args.set_type,
+    img_input=images,
+    ft_output=ft_output,
+    dataset_cstor=dataset_cstor,
+    dataset_args=dataset_args,
+    batchifier_cstor=OracleBatchifier,
+    out_dir=args.out_dir,
+    set_type=args.set_type,
     network_ckpt=args.ckpt,
-    batch_size = args.batch_size,
-    no_threads = args.no_thread,
-    gpu_ratio = args.gpu_ratio)
+    batch_size=args.batch_size,
+    no_threads=args.no_thread,
+    gpu_ratio=args.gpu_ratio)
