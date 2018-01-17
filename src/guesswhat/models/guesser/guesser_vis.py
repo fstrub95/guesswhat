@@ -55,7 +55,7 @@ class GuesserNetwork(AbstractNetwork):
             with tf.variable_scope('obj_mlp'):
                 h1 = tfc_layers.fully_connected(
                     self.flat_objects_input,
-                    num_outputs=config["object"]['obj_mlp_units'],
+                    num_outputs=config["object"]['obj_emb_hidden'],
                     activation=tf.nn.relu,
                     scope='l1',
                     reuse=reuse)

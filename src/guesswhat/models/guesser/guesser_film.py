@@ -8,6 +8,9 @@ from generic.tf_factory.image_factory import get_image_features
 
 class GuesserNetwork(AbstractNetwork):
     def __init__(self, config, num_words, device='', reuse=False):
+
+        raise NotImplementedError("Not Yet")
+
         AbstractNetwork.__init__(self, "guesser", device=device)
 
         with tf.variable_scope(self.scope_name, reuse=reuse):
