@@ -15,8 +15,8 @@ from generic.utils.file_handlers import pickle_dump
 from generic.data_provider.image_loader import get_img_builder
 from generic.data_provider.nlp_utils import GloveEmbeddings
 
-from guesswhat.data_provider.guesswhat_dataset import OracleDataset
-from guesswhat.data_provider.oracle_batchifier import OracleBatchifier
+from guesswhat.data_provider.guesswhat_dataset import Dataset
+from guesswhat.data_provider.oracle_batchifier import OracleBatchifier, BatchifierSplitMode
 from guesswhat.data_provider.guesswhat_tokenizer import GWTokenizer
 from guesswhat.data_provider.guesswhat_dataset import dump_oracle
 from guesswhat.models.oracle.oracle_factory import create_oracle
@@ -79,9 +79,9 @@ if __name__ == '__main__':
 
     # Load data
     logger.info('Loading data..')
-    trainset = OracleDataset.load(args.data_dir, "train", image_builder, crop_builder, split_question, args.no_games_to_load)
-    validset = OracleDataset.load(args.data_dir, "valid", image_builder, crop_builder, split_question, args.no_games_to_load)
-    testset = OracleDataset.load(args.data_dir, "test", image_builder, crop_builder, split_question, args.no_games_to_load)
+    trainset = Dataset(args.data_dir, "train", image_builder, crop_builder)
+    validset = Dataset(args.data_dir, "valid", image_builder, crop_builder)
+    testset = Dataset(args.data_dir, "test", image_builder, crop_builder)
 
     # Load dictionary
     logger.info('Loading dictionary..')
@@ -139,7 +139,12 @@ if __name__ == '__main__':
 
         # create training tools
         evaluator = Evaluator(sources, network.scope_name, network=network, tokenizer=tokenizer)
-        batchifier = OracleBatchifier(tokenizer, sources, glove=glove, status=config['status'])
+
+        if split_question: split_mode = BatchifierSplitMode.SingleQuestion
+        else: split_mode = BatchifierSplitMode.DialogueHistory
+
+        batchifier = OracleBatchifier(tokenizer, sources, glove=glove, status=config['status'],
+                                      split_mode=split_mode)
 
         for t in range(start_epoch, no_epoch):
             logger.info('Epoch {}..'.format(t + 1))

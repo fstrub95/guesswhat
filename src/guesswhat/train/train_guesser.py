@@ -15,7 +15,7 @@ from generic.utils.thread_pool import create_cpu_pool
 from generic.data_provider.image_loader import get_img_builder
 
 from guesswhat.data_provider.guesswhat_dataset import Dataset
-from guesswhat.data_provider.questioner_batchifier import QuestionerBatchifier
+from guesswhat.data_provider.questioner_batchifier import LSTMBatchifier
 from guesswhat.data_provider.guesswhat_tokenizer import GWTokenizer
 from guesswhat.models.guesser.guesser_baseline import GuesserNetwork
 
@@ -114,7 +114,7 @@ if __name__ == '__main__':
 
         # create training tools
         evaluator = Evaluator(sources, network.scope_name, network=network, tokenizer=tokenizer)
-        batchifier = QuestionerBatchifier(tokenizer, sources, status=('success',))
+        batchifier = LSTMBatchifier(tokenizer, sources, status=('success',))
 
         for t in range(start_epoch, no_epoch):
 
