@@ -2,7 +2,7 @@ import numpy as np
 import collections
 from PIL import Image
 
-from generic.data_provider.batchifier import AbstractBatchifier
+from generic.data_provider.batchifier import AbstractBatchifier, BatchifierSplitMode, batchifier_split_helper
 
 from generic.data_provider.image_preprocessors import get_spatial_feat, resize_image, scaled_crop_and_pad
 from generic.data_provider.nlp_utils import padder, padder_3d
@@ -11,13 +11,17 @@ from itertools import chain
 
 class OracleBatchifier(AbstractBatchifier):
 
-    def __init__(self, tokenizer, sources, split_question=True, glove=None, ignore_NA=False, status=list()):
+    def __init__(self, tokenizer, sources, split_question=True, glove=None, ignore_NA=False, status=list(), split_mode=BatchifierSplitMode.NoSplit):
         self.tokenizer = tokenizer
         self.sources = sources
         self.status = status
         self.split_question = split_question
         self.ignore_NA = ignore_NA
         self.glove = glove
+        self.split_mode = split_mode
+
+    def split(self, games):
+        return batchifier_split_helper(games, split_mode=self.split_mode)
 
     def filter(self, games):
 
@@ -28,7 +32,6 @@ class OracleBatchifier(AbstractBatchifier):
             games = [g for g in games if g.answers[-1] != "N/A"]
 
         return games
-
 
     def apply(self, games):
         sources = self.sources
@@ -78,8 +81,8 @@ class OracleBatchifier(AbstractBatchifier):
                 assert "image" in batch, "mask input require the image source"
                 mask = game.object.get_mask()
 
-                ft_width, ft_height = batch['image'][-1].shape[1],\
-                                     batch['image'][-1].shape[0] # Use the image feature size (not the original img size)
+                ft_width, ft_height = batch['image'][-1].shape[1], \
+                                      batch['image'][-1].shape[0]  # Use the image feature size (not the original img size)
 
                 mask = resize_image(Image.fromarray(mask), height=ft_height, width=ft_width)
                 batch['img_mask'].append(np.array(mask))
@@ -88,15 +91,14 @@ class OracleBatchifier(AbstractBatchifier):
                 assert "crop" in batch, "mask input require the crop source"
                 cmask = game.object.get_mask()
 
-                ft_width, ft_height = batch['crop'][-1].shape[1],\
-                                     batch['crop'][-1].shape[0] # Use the crop feature size (not the original img size)
+                ft_width, ft_height = batch['crop'][-1].shape[1], \
+                                      batch['crop'][-1].shape[0]  # Use the crop feature size (not the original img size)
 
                 cmask = scaled_crop_and_pad(raw_img=Image.fromarray(cmask), bbox=game.object.bbox, scale=game.object.crop_scale)
                 cmask = resize_image(cmask, height=ft_height, width=ft_width)
                 batch['crop_mask'].append(np.array(cmask))
 
-
-        # pad the questions
+        # Pad the questions
         if 'question' in sources:
             batch['question'], batch['seq_length'] = padder(batch['question'], padding_symbol=tokenizer.word2i['<padding>'])
 
@@ -104,6 +106,3 @@ class OracleBatchifier(AbstractBatchifier):
             batch['glove'], _ = padder_3d(batch['glove'])
 
         return batch
-
-
-

@@ -1,6 +1,6 @@
 from __future__ import unicode_literals
 
-from guesswhat.data_provider.questioner_batchifier import QuestionerBatchifier
+from guesswhat.data_provider.questioner_batchifier import LSTMBatchifier
 from guesswhat.data_provider.oracle_batchifier import OracleBatchifier
 
 from generic.data_provider.iterator import Iterator
@@ -25,7 +25,7 @@ def test_oracle(sess, testset, tokenizer, oracle, cpu_pool, batch_size, logger):
 def test_guesser(sess, testset, tokenizer, guesser, cpu_pool, batch_size, logger):
     guesser_sources = guesser.get_sources(sess)
     guesser_evaluator = Evaluator(guesser_sources, guesser.scope_name, network=guesser, tokenizer=tokenizer)
-    guesser_batchifier = QuestionerBatchifier(tokenizer, guesser_sources, status=('success',))
+    guesser_batchifier = LSTMBatchifier(tokenizer, guesser_sources, status=('success',))
     guesser_iterator = Iterator(testset, pool=cpu_pool,
                              batch_size=batch_size,
                              batchifier=guesser_batchifier)
@@ -37,7 +37,7 @@ def test_guesser(sess, testset, tokenizer, guesser, cpu_pool, batch_size, logger
 def test_qgen(sess, testset, tokenizer, qgen, cpu_pool, batch_size, logger):
     qgen_sources = qgen.get_sources(sess)
     qgen_evaluator = Evaluator(qgen_sources, qgen.scope_name, network=qgen, tokenizer=tokenizer)
-    qgen_batchifier = QuestionerBatchifier(tokenizer, qgen_sources, status=('success',))
+    qgen_batchifier = LSTMBatchifier(tokenizer, qgen_sources, status=('success',))
     qgen_iterator = Iterator(testset, pool=cpu_pool,
                                  batch_size=batch_size,
                                  batchifier=qgen_batchifier)

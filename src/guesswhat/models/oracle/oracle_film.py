@@ -4,7 +4,6 @@ import tensorflow.contrib.layers as tfc_layers
 import neural_toolbox.ft_utils as ft_utils
 import neural_toolbox.rnn as rnn
 
-from generic.utils.config import find_nested_conf
 from generic.tf_factory.image_factory import get_image_features
 
 from generic.tf_utils.abstract_network import ResnetModel

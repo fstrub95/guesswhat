@@ -5,10 +5,9 @@ import numpy as np
 
 from generic.data_provider.dataset import AbstractDataset
 
-use_100 = False
-
 try:
     import cocoapi.PythonAPI.pycocotools.mask as cocoapi
+
     use_coco = True
 except ImportError:
     print("Coco API was not detected - advanced segmentation features cannot be used")
@@ -68,6 +67,7 @@ class Image:
         else:
             return None
 
+
 class Bbox:
     def __init__(self, bbox, im_width, im_height):
         # Retrieve features (COCO format)
@@ -80,8 +80,8 @@ class Bbox:
         self.y_upper = im_height - bbox[1]
         self.y_lower = self.y_upper - self.y_height
 
-        self.x_center = self.x_left + 0.5*self.x_width
-        self.y_center = self.y_lower + 0.5*self.y_height
+        self.x_center = self.x_left + 0.5 * self.x_width
+        self.y_center = self.y_lower + 0.5 * self.y_height
 
         self.coco_bbox = bbox
 
@@ -94,8 +94,6 @@ class Object:
         self.bbox = bbox
         self.area = area
         self.segment = segment
-
-
 
         # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocotools/mask.py
         self.rle_mask = None
@@ -112,22 +110,18 @@ class Object:
     def get_mask(self):
         assert self.rle_mask is not None, "Mask option are not available, please compile and link cocoapi (cf. cocoapi/PythonAPI/setup.py)"
         tmp_mask = cocoapi.decode(self.rle_mask)
-        if len(tmp_mask.shape) > 2: # concatenate several mask into a single one
+        if len(tmp_mask.shape) > 2:  # concatenate several mask into a single one
             tmp_mask = np.sum(tmp_mask, axis=2)
             tmp_mask[tmp_mask > 1] = 1
 
         return tmp_mask.astype(np.float32)
-
 
     def get_crop(self, **kwargs):
         assert self.crop_loader is not None, "Invalid crop loader"
         return self.crop_loader.get_image(**kwargs)
 
 
-
-
 class Dataset(AbstractDataset):
-
     """Loads the dataset."""
     def __init__(self, folder, which_set, image_builder=None, crop_builder=None, games_to_load=None):
         file = '{}/guesswhat.{}.jsonl.gz'.format(folder, which_set)
@@ -165,62 +159,61 @@ class Dataset(AbstractDataset):
         super(Dataset, self).__init__(games)
 
 
-
-class OracleDataset(AbstractDataset):
-    """
-    Each game contains a single question answer pair
-    """
-    def __init__(self, dataset, split_question=True):
-        old_games = dataset.get_data()
-        new_games = []
-
-        for g in old_games:
-            if split_question:
-                new_games += self.independant_split(g)
-            else:
-                new_games += self.contiguous_split(g)
-
-        super(OracleDataset, self).__init__(new_games)
-
-    @classmethod
-    def load(cls, folder, which_set, image_builder=None, crop_builder=None, split_question=True, games_to_load=None):
-        return cls(Dataset(folder, which_set, image_builder, crop_builder, games_to_load), split_question)
-
-    def independant_split(self, game):
-        games = []
-        for i, q, a in zip(game.question_ids, game.questions, game.answers):
-            new_game = copy.copy(game)
-            new_game.questions = [q]
-            new_game.question_ids = [i]
-            new_game.answers = [a]
-            games.append(new_game)
-        return games
-
-    def contiguous_split(self, game):
-        games = []
-        for i in range(len(game.question_ids)):
-            new_game = copy.copy(game)
-            new_game.questions = game.questions[:i + 1]
-            new_game.question_ids = game.question_ids[:i + 1]
-            new_game.answers = game.answers[:i + 1]
-            games.append(new_game)
-        return games
+# class OracleDataset(AbstractDataset):
+#     """
+#     Each game contains a single question answer pair
+#     """
+#     def __init__(self, dataset, split_question=True):
+#         old_games = dataset.get_data()
+#         new_games = []
+#
+#         for g in old_games:
+#             if split_question:
+#                 new_games += self.independant_split(g)
+#             else:
+#                 new_games += self.contiguous_split(g)
+#
+#         super(OracleDataset, self).__init__(new_games)
+#
+#     @classmethod
+#     def load(cls, folder, which_set, image_builder=None, crop_builder=None, split_question=True):
+#         return cls(Dataset(folder, which_set, image_builder, crop_builder), split_question)
+#
+#     def independant_split(self, game):
+#         games = []
+#         for i, q, a in zip(game.question_ids, game.questions, game.answers):
+#             new_game = copy.copy(game)
+#             new_game.questions = [q]
+#             new_game.question_ids = [i]
+#             new_game.answers = [a]
+#             games.append(new_game)
+#         return games
+#
+#     def contiguous_split(self, game):
+#         games = []
+#         for i in range(len(game.question_ids)):
+#             new_game = copy.copy(game)
+#             new_game.questions = game.questions[:i + 1]
+#             new_game.question_ids = game.question_ids[:i + 1]
+#             new_game.answers = game.answers[:i + 1]
+#             games.append(new_game)
+#         return games
 
 
 class CropDataset(AbstractDataset):
     """
     Each game contains no question/answers but a new object
     """
+
     def __init__(self, dataset, expand_objects):
         old_games = dataset.get_data()
         new_games = []
-
 
         for g in old_games:
             if expand_objects:
                 new_games += self.split(g)
             else:
-               new_games += self.update_ref(g)
+                new_games += self.update_ref(g)
         super(CropDataset, self).__init__(new_games)
 
     @classmethod
@@ -262,7 +255,6 @@ class CropDataset(AbstractDataset):
 
 
 def dump_samples_into_dataset(data, save_path, tokenizer, name="model", true_id=False):
-
     with gzip.open(save_path.format('guesswhat.' + name + '.jsonl.gz'), 'wb') as f:
         for _, d in enumerate(data):
             dialogue = d["dialogue"]
@@ -275,20 +267,20 @@ def dump_samples_into_dataset(data, save_path, tokenizer, name="model", true_id=
             sample = {}
 
             qas = []
-            start  = 1
+            start = 1
             for k, word in enumerate(dialogue):
                 if word == tokenizer.yes_token or \
-                                word == tokenizer.no_token or \
-                                word == tokenizer.non_applicable_token:
+                        word == tokenizer.no_token or \
+                        word == tokenizer.non_applicable_token:
                     q = tokenizer.decode(dialogue[start:k - 1])
                     a = tokenizer.decode([dialogue[k]])
 
-                    prob_obj = list(prob_objects[len(qas),:len(game.objects)])
-                    prob_obj = [str(round(p,3)) for p in prob_obj] # decimal are not supported y default in json encoder
+                    prob_obj = list(prob_objects[len(qas), :len(game.objects)])
+                    prob_obj = [str(round(p, 3)) for p in prob_obj]  # decimal are not supported y default in json encoder
 
                     qas.append({"question": q,
                                 "answer": a[1:-1],
-                                "id":k,
+                                "id": k,
                                 "p": prob_obj})
 
                     start = k + 1
@@ -307,7 +299,7 @@ def dump_samples_into_dataset(data, save_path, tokenizer, name="model", true_id=
                                   "category": o.category,
                                   "area": o.area,
                                   "bbox": o.bbox.coco_bbox,
-                                  "segment" : [], #no segment to avoid making the file to big
+                                  "segment": [],  # no segment to avoid making the file to big
                                   } for o in game.objects]
 
             sample["object_id"] = object_id
@@ -319,7 +311,6 @@ def dump_samples_into_dataset(data, save_path, tokenizer, name="model", true_id=
 
 
 def dump_oracle(oracle_data, games, save_path, name="oracle"):
-
     with gzip.open(save_path.format('guesswhat.' + name + '.jsonl.gz'), 'wb') as f:
         for game in games:
 
@@ -331,7 +322,7 @@ def dump_oracle(oracle_data, games, save_path, name="oracle"):
                 assert qa["id"] == q_id
 
             for qo, qh in zip(qas, game.questions):
-                assert qo["question"] == qh, "{} vs {}".format(qo,qh)
+                assert qo["question"] == qh, "{} vs {}".format(qo, qh)
 
             sample["id"] = game.dialogue_id
             sample["qas"] = qas
@@ -347,13 +338,12 @@ def dump_oracle(oracle_data, games, save_path, name="oracle"):
                                   "category": o.category,
                                   "area": o.area,
                                   "bbox": o.bbox.coco_bbox,
-                                  "segment" : o.segment,
+                                  "segment": o.segment,
                                   } for o in game.objects]
 
             sample["object_id"] = game.object_id
             sample["guess_object_id"] = game.object_id
             sample["status"] = game.status
-
 
             f.write(str(json.dumps(sample)).encode())
             f.write(b'\n')

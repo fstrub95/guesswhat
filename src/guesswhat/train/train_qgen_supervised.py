@@ -14,10 +14,12 @@ from generic.utils.file_handlers import pickle_dump
 from generic.data_provider.image_loader import get_img_builder
 
 from guesswhat.data_provider.guesswhat_dataset import Dataset
-from guesswhat.data_provider.questioner_batchifier import QuestionerBatchifier
-from guesswhat.data_provider.guesswhat_tokenizer import GWTokenizer
-from guesswhat.models.qgen.qgen_lstm_network import QGenNetworkLSTM
+from guesswhat.data_provider.questioner_batchifier import LSTMBatchifier, Seq2SeqBatchifier
 
+from guesswhat.data_provider.guesswhat_tokenizer import GWTokenizer
+
+from guesswhat.models.qgen.qgen_lstm_network import QGenNetworkLSTM
+from guesswhat.models.qgen.qgen_decoder_network import QGenNetworkDecoder
 
 if __name__ == '__main__':
 
@@ -63,7 +65,8 @@ if __name__ == '__main__':
 
     # Build Network
     logger.info('Building network..')
-    network = QGenNetworkLSTM(config["model"], num_words=tokenizer.no_words, policy_gradient=False)
+    # network = QGenNetworkLSTM(config["model"], num_words=tokenizer.no_words, policy_gradient=False)
+    network = QGenNetworkDecoder(config["model"], num_words=tokenizer.no_words, policy_gradient=False)
 
     # Build Optimizer
     logger.info('Building optimizer..')
@@ -92,10 +95,10 @@ if __name__ == '__main__':
         sess.run(tf.global_variables_initializer())
         start_epoch = load_checkpoint(sess, saver, args, save_path)
 
-
-        # create training tools
+        # Create training tools
         evaluator = Evaluator(sources, network.scope_name, network=network, tokenizer=tokenizer)
-        batchifier = QuestionerBatchifier(tokenizer, sources, status=('success',))
+        # batchifier = LSTMBatchifier(tokenizer, sources, status=('success',))
+        batchifier = Seq2SeqBatchifier(tokenizer, sources, status=('success',))
 
         best_val_loss = 1e5
         for t in range(0, config['optimizer']['no_epoch']):

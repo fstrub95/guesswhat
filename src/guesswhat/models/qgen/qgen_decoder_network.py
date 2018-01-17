@@ -11,7 +11,6 @@ import neural_toolbox.rnn as rnn
 
 class QGenNetworkDecoder(AbstractNetwork):
 
-
     #TODO: add dropout
     def __init__(self, config, num_words, policy_gradient, start_token, stop_token, device='', reuse=False):
         AbstractNetwork.__init__(self, "qgen", device=device)
