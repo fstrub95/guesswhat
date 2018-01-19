@@ -19,9 +19,10 @@ The keyword "model" refers to the model architecture of the guesser:
     "cat_emb_dim": 256,    # dimension of the object category embedding
     "no_categories": 90    # number of object category (90 for MS coco)
     "spat_dim": 8,         # dimension of the spatial information
-    "obj_mlp_units": 512,  # number of hidden units to build the full object embedding
+    "obj_emb_hidden": 512,  # number of hidden units to build the full object embedding
 
-    "dialog_emb_dim": 512, # Projection size for the dialogue and the objects
+    "dialog_emb_dim": 512, # Projection size for the dialogue and the objects, if equal zero, then the dialogue is
+                           # not projected and the object is projected to match lstm output size
   },
 ```
 
