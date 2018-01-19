@@ -75,8 +75,10 @@ class QGenNetworkDecoder(AbstractNetwork):
 
             self._question = tf.placeholder(tf.int32, [batch_size, None], name='question')
             self._seq_length_question = tf.placeholder(tf.int32, [batch_size], name='seq_length_question')
+            self._question_mask = tf.placeholder(tf.float32, [batch_size, None], name='question_mask')
 
             word_emb_question = tf.nn.embedding_lookup(params=embedding_encoder, ids=self._question)
+            word_emb_question = tf.nn.dropout(word_emb_question, dropout_keep)
 
             #####################
             #   VIS
@@ -125,12 +127,12 @@ class QGenNetworkDecoder(AbstractNetwork):
                 decoder_cell, training_helper, self.final_embedding,
                 output_layer=projection_layer)
 
-            decoder_outputs, _ = tfc_seq.dynamic_decode(decoder,
-                                                        maximum_iterations=config["top"]["decoder"]["maximum_iterations"])
+            (decoder_outputs,_), _, _ = tfc_seq.dynamic_decode(decoder)#,
+                                                        #maximum_iterations=config["top"]["decoder"]["maximum_iterations"])
 
-            tfc_seq.GreedyEmbeddingHelper(
-                word_emb_dialogue,
-                tf.fill([batch_size], start_token), stop_token)
+            # tfc_seq.GreedyEmbeddingHelper(
+            #     word_emb_dialogue,
+            #     tf.fill([batch_size], start_token), stop_token)
 
 
             #####################
@@ -140,9 +142,20 @@ class QGenNetworkDecoder(AbstractNetwork):
             # compute the softmax for evaluation
             with tf.variable_scope('decoder_output'):
                 self.cross_entropy_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=decoder_outputs, labels=self._question)
+                self.cross_entropy_loss_1 = self.cross_entropy_loss * self._question_mask
+
+                count = tf.reduce_sum(self._question_mask)
+
+                self.cross_entropy_loss_2 = tf.reduce_sum(self.cross_entropy_loss_1)
+                self.cross_entropy_loss_3 = self.cross_entropy_loss_2 / count
+
+                self.softmax_output = tf.nn.softmax(decoder_outputs, name="softmax")
+                self.argmax_output = tf.argmax(decoder_outputs, axis=2)
 
                 if not policy_gradient:
-                    self.loss = tf.reduce_mean(self.cross_entropy_loss)
+                    self.loss = self.cross_entropy_loss_3
+
+
 
 
     def get_loss(self):

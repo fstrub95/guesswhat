@@ -48,6 +48,7 @@ class Game:
         self.answers = [qa['answer'] for qa in qas]
         self.status = status
 
+        self.is_full_dialogue = True
 
 class Image:
     def __init__(self, id, width, height, url, which_set, image_builder=None):

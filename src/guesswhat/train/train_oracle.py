@@ -50,8 +50,6 @@ if __name__ == '__main__':
     config, exp_identifier, save_path = load_config(args.config, args.exp_dir, args)
     logger = logging.getLogger()
 
-    logger.info("Config name : {}".format(config["model"]["name"]))
-
     # Load config
     finetune = config["model"]["image"].get('finetune', list())
     split_question = config["model"]["split_question"]
@@ -79,9 +77,9 @@ if __name__ == '__main__':
 
     # Load data
     logger.info('Loading data..')
-    trainset = Dataset(args.data_dir, "train", image_builder, crop_builder)
-    validset = Dataset(args.data_dir, "valid", image_builder, crop_builder)
-    testset = Dataset(args.data_dir, "test", image_builder, crop_builder)
+    trainset = Dataset(args.data_dir, "train", image_builder, crop_builder, args.no_games_to_load)
+    validset = Dataset(args.data_dir, "valid", image_builder, crop_builder, args.no_games_to_load)
+    testset = Dataset(args.data_dir, "test", image_builder, crop_builder, args.no_games_to_load)
 
     # Load dictionary
     logger.info('Loading dictionary..')
@@ -110,10 +108,12 @@ if __name__ == '__main__':
     resnet_saver = None
 
     # Store experiments
-    data = collections.defaultdict(list)
+    data = dict()
     data["hash_id"] = exp_identifier
     data["config"] = config
     data["args"] = args
+    data["loss"] = collections.defaultdict(list)
+    data["error"] = collections.defaultdict(list)
 
     # Retrieve only resnet variabes
     if use_resnet:
@@ -169,7 +169,6 @@ if __name__ == '__main__':
             logger.info("Validation loss : {}".format(valid_loss))
             logger.info("Validation error: {}".format(1-valid_accuracy))
 
-
             data["loss"]["train"].append(train_loss)
             data["loss"]["valid"].append(valid_loss)
             data["error"]["train"].append(1-train_accuracy)
@@ -181,7 +180,7 @@ if __name__ == '__main__':
                     saver.save(sess, save_path.format('params.ckpt'))
                     logger.info("Oracle checkpoint saved...")
 
-                    data["ckpt_epoch"].append(t)
+                    data["ckpt_epoch"] = t
 
                     pickle_dump(data, save_path.format('status.pkl'))
 
@@ -191,7 +190,7 @@ if __name__ == '__main__':
         saver.restore(sess, save_path.format('params.ckpt'))
 
         # Create     Listener
-        oracle_listener = OracleListener(tokenizer=tokenizer, require=network.prediction)
+        #oracle_listener = OracleListener(tokenizer=tokenizer, require=network.prediction)
         # batchifier.status = ["success", "failure", "incomplete"]
 
         cpu_pool = create_cpu_pool(args.no_thread, use_process=use_process)
@@ -200,11 +199,11 @@ if __name__ == '__main__':
                                  batchifier=batchifier,
                                  shuffle=False)
 
-        [test_loss, test_accuracy] = evaluator.process(sess, test_iterator, outputs, listener=oracle_listener)
+        [test_loss, test_accuracy] = evaluator.process(sess, test_iterator, outputs)#, listener=oracle_listener)
 
-        dump_oracle(oracle_listener.get_answers(), games=testset.games,
-                                 save_path=save_path,
-                                 name="oracle")
+        # dump_oracle(oracle_listener.get_answers(), games=testset.games,
+        #                          save_path=save_path,
+        #                          name="oracle")
 
         logger.info("Testing loss : {}".format(test_loss))
         logger.info("Testing error: {}".format(1-test_accuracy))

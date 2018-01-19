@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-from multiprocessing import Pool
 import collections
 
 import tensorflow as tf
@@ -12,6 +11,7 @@ from generic.tf_utils.optimizer import create_optimizer
 from generic.tf_utils.ckpt_loader import load_checkpoint
 from generic.utils.config import load_config
 from generic.utils.file_handlers import pickle_dump
+from generic.utils.thread_pool import create_cpu_pool
 from generic.data_provider.image_loader import get_img_builder
 from generic.data_provider.nlp_utils import GloveEmbeddings
 
@@ -75,11 +75,12 @@ if __name__ == '__main__':
     # Build Network
     logger.info('Building network..')
     # network = QGenNetworkLSTM(config["model"], num_words=tokenizer.no_words, policy_gradient=False)
-    network = QGenNetworkDecoder(config["model"], num_words=tokenizer.no_words, policy_gradient=False)
+    network = QGenNetworkDecoder(config["model"], num_words=tokenizer.no_words, policy_gradient=False,
+                                 start_token=tokenizer.start_token, stop_token=tokenizer.stop_token)
 
     # Build Optimizer
     logger.info('Building optimizer..')
-    optimizer, outputs = create_optimizer(network, config)
+    optimizer, outputs = create_optimizer(network, config["optimizer"])
 
     ###############################
     #  START TRAINING
@@ -90,16 +91,16 @@ if __name__ == '__main__':
     no_epoch = config["optimizer"]["no_epoch"]
 
     # Store experiments
-    data = collections.defaultdict(list)
+    data = dict()
     data["hash_id"] = exp_identifier
     data["config"] = config
     data["args"] = args
+    data["loss"] = collections.defaultdict(list)
 
     # create a saver to store/load checkpoint
     saver = tf.train.Saver()
 
     # CPU/GPU option
-    cpu_pool = Pool(args.no_thread, maxtasksperchild=1000)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu_ratio)
 
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
@@ -120,36 +121,48 @@ if __name__ == '__main__':
 
             logger.info('Epoch {}..'.format(t + 1))
 
+            # Create cpu pools (at each iteration otherwise threads may become zombie - python bug)
+            cpu_pool = create_cpu_pool(args.no_thread, use_process=False)
+
             train_iterator = Iterator(trainset,
                                       batch_size=batch_size, pool=cpu_pool,
                                       batchifier=batchifier,
                                       shuffle=True)
             [train_loss, _] = evaluator.process(sess, train_iterator, outputs=outputs + [optimizer])
 
+            from guesswhat.train.eval_listener import QGenListener
+            listener = QGenListener(require=network.argmax_output)
+
             valid_iterator = Iterator(validset, pool=cpu_pool,
                                       batch_size=batch_size*2,
                                       batchifier=batchifier,
                                       shuffle=False)
-            [valid_loss, _] = evaluator.process(sess, valid_iterator, outputs=outputs)
+            [valid_loss] = evaluator.process(sess, valid_iterator, outputs=outputs, listener=listener)
+
+            question_tokens = listener.results
+            for qt in question_tokens:
+                logger.info(tokenizer.decode(qt))
+
 
             logger.info("Training loss: {}".format(train_loss))
             logger.info("Validation loss: {}".format(valid_loss))
 
-            logger.info("Training loss: {}".format(train_loss))
-            logger.info("Validation loss: {}".format(valid_loss))
+            data["loss"]["train"].append(train_loss)
+            data["loss"]["valid"].append(valid_loss)
 
             if valid_loss < best_val_loss:
                 best_train_loss = train_loss
                 best_val_loss = valid_loss
                 saver.save(sess, save_path.format('params.ckpt'))
-                logger.info("Guesser checkpoint saved...")
+                logger.info("QGen checkpoint saved...")
 
-                data["ckpt_epoch"].append(t)
+                data["ckpt_epoch"] = t
 
                 pickle_dump(data, save_path.format('status.pkl'))
 
         # Load early stopping
         saver.restore(sess, save_path.format('params.ckpt'))
+        cpu_pool = create_cpu_pool(args.no_thread, use_process=False)
         test_iterator = Iterator(testset, pool=cpu_pool,
                                  batch_size=batch_size*2,
                                  batchifier=batchifier,

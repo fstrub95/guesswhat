@@ -86,10 +86,12 @@ if __name__ == '__main__':
     no_epoch = config["optimizer"]["no_epoch"]
 
     # Store experiments
-    data = collections.defaultdict(list)
+    data = dict()
     data["hash_id"] = exp_identifier
     data["config"] = config
     data["args"] = args
+    data["loss"] = collections.defaultdict(list)
+    data["error"] = collections.defaultdict(list)
 
     # create a saver to store/load checkpoint
     saver = tf.train.Saver()
@@ -151,7 +153,7 @@ if __name__ == '__main__':
                 saver.save(sess, save_path.format('params.ckpt'))
                 logger.info("Guesser checkpoint saved...")
 
-                data["ckpt_epoch"].append(t)
+                data["ckpt_epoch"] = t
 
                 pickle_dump(data, save_path.format('status.pkl'))
 
