@@ -44,7 +44,6 @@ if __name__ == '__main__':
     parser.add_argument("-no_thread", type=int, default=2, help="No thread to load batch")
     parser.add_argument("-no_games_to_load", type=int, help="No games to use during training Default : all")
 
-
     args = parser.parse_args()
 
     config, exp_identifier, save_path = load_config(args.config, args.exp_dir, args)
@@ -190,7 +189,7 @@ if __name__ == '__main__':
         saver.restore(sess, save_path.format('params.ckpt'))
 
         # Create     Listener
-        #oracle_listener = OracleListener(tokenizer=tokenizer, require=network.prediction)
+        oracle_listener = OracleListener(tokenizer=tokenizer, require=network.prediction)
         # batchifier.status = ["success", "failure", "incomplete"]
 
         cpu_pool = create_cpu_pool(args.no_thread, use_process=use_process)
@@ -199,11 +198,11 @@ if __name__ == '__main__':
                                  batchifier=batchifier,
                                  shuffle=False)
 
-        [test_loss, test_accuracy] = evaluator.process(sess, test_iterator, outputs)#, listener=oracle_listener)
+        [test_loss, test_accuracy] = evaluator.process(sess, test_iterator, outputs, listener=oracle_listener)
 
-        # dump_oracle(oracle_listener.get_answers(), games=testset.games,
-        #                          save_path=save_path,
-        #                          name="oracle")
+        dump_oracle(oracle_listener.get_answers(), games=testset.games,
+                    save_path=save_path,
+                    name="oracle")
 
         logger.info("Testing loss : {}".format(test_loss))
         logger.info("Testing error: {}".format(1-test_accuracy))

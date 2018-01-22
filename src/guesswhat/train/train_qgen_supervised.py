@@ -75,8 +75,7 @@ if __name__ == '__main__':
     # Build Network
     logger.info('Building network..')
     # network = QGenNetworkLSTM(config["model"], num_words=tokenizer.no_words, policy_gradient=False)
-    network = QGenNetworkDecoder(config["model"], num_words=tokenizer.no_words, policy_gradient=False,
-                                 start_token=tokenizer.start_token, stop_token=tokenizer.stop_token)
+    network = QGenNetworkDecoder(config["model"], num_words=tokenizer.no_words, policy_gradient=False)
 
     # Build Optimizer
     logger.info('Building optimizer..')

@@ -9,10 +9,11 @@ from generic.tf_utils.abstract_network import AbstractNetwork
 
 import neural_toolbox.rnn as rnn
 
+
 class QGenNetworkDecoder(AbstractNetwork):
 
     #TODO: add dropout
-    def __init__(self, config, num_words, policy_gradient, start_token, stop_token, device='', reuse=False):
+    def __init__(self, config, num_words, policy_gradient, device='', reuse=False):
         AbstractNetwork.__init__(self, "qgen", device=device)
 
         # Create the scope for this graph
@@ -27,7 +28,6 @@ class QGenNetworkDecoder(AbstractNetwork):
                                    lambda: tf.constant(dropout_keep_scalar),
                                    lambda: tf.constant(1.0))
 
-
             #####################
             #   IMAGES
             #####################
@@ -35,11 +35,10 @@ class QGenNetworkDecoder(AbstractNetwork):
             self._image = tf.placeholder(tf.float32, [batch_size] + config['image']["dim"], name='image')
             self.image_out = get_image_features(
                 image=self._image,
-                question=None, # no attention at this point
+                question=None,  # no attention at this point
                 is_training=self._is_training,
                 scope_name="image_processing",
                 config=config['image'])
-
 
             #####################
             #   DIALOGUE
@@ -49,10 +48,10 @@ class QGenNetworkDecoder(AbstractNetwork):
             self._seq_length_dialogue = tf.placeholder(tf.int32, [batch_size], name='seq_length_dialogue')
 
             with tf.variable_scope('word_embedding', reuse=reuse):
-                embedding_encoder = tf.get_variable("embedding_encoder",
-                                                    shape=[num_words, config["dialogue"]["word_embedding_dim"]])
+                self.dialogue_emb_weights = tf.get_variable("dialogue_embedding_encoder",
+                                                            shape=[num_words, config["dialogue"]["word_embedding_dim"]])
 
-            word_emb_dialogue = tf.nn.embedding_lookup(params=embedding_encoder, ids=self._dialogue)
+            word_emb_dialogue = tf.nn.embedding_lookup(params=self.dialogue_emb_weights, ids=self._dialogue)
 
             if config["dialogue"]['glove']:
                 self._glove = tf.placeholder(tf.float32, [None, None, 300], name="glove")
@@ -68,7 +67,6 @@ class QGenNetworkDecoder(AbstractNetwork):
                 reuse=reuse)
             self.last_rnn_state = tf.nn.dropout(self.last_rnn_state, dropout_keep)
 
-
             #####################
             #   TARGET QUESTION
             #####################
@@ -77,8 +75,14 @@ class QGenNetworkDecoder(AbstractNetwork):
             self._seq_length_question = tf.placeholder(tf.int32, [batch_size], name='seq_length_question')
             self._question_mask = tf.placeholder(tf.float32, [batch_size, None], name='question_mask')
 
-            word_emb_question = tf.nn.embedding_lookup(params=embedding_encoder, ids=self._question)
-            word_emb_question = tf.nn.dropout(word_emb_question, dropout_keep)
+            if config["dialogue"]["share_decoder_emb"]:
+                self.question_emb_weights = self.dialogue_emb_weights
+            else:
+                self.question_emb_weights = tf.get_variable("question_embedding_encoder",
+                                                            shape=[num_words, config["dialogue"]["word_embedding_dim"]])
+
+            self.word_emb_question = tf.nn.embedding_lookup(params=self.question_emb_weights, ids=self._question)
+            self.word_emb_question = tf.nn.dropout(self.word_emb_question, dropout_keep)
 
             #####################
             #   VIS
@@ -93,10 +97,10 @@ class QGenNetworkDecoder(AbstractNetwork):
                                                                       scope="dialogue_projection")
 
                 self.image_projection = tfc_layers.fully_connected(self.image_out,
-                                                                      num_outputs=config["top"]["vis"]["projection_size"],
-                                                                      activation_fn=tf.nn.tanh,
-                                                                      reuse=reuse,
-                                                                      scope="image_projection")
+                                                                   num_outputs=config["top"]["vis"]["projection_size"],
+                                                                   activation_fn=tf.nn.tanh,
+                                                                   reuse=reuse,
+                                                                   scope="image_projection")
 
                 full_projection = self.image_projection * self.dialogue_projection
                 full_projection = tf.nn.dropout(full_projection, dropout_keep)
@@ -108,32 +112,20 @@ class QGenNetworkDecoder(AbstractNetwork):
                                                                   scope="final_projection")
                 self.final_embedding = tf.nn.dropout(self.final_embedding, dropout_keep)
 
-
             #####################
             #   DECODER
             #####################
 
-            decoder_cell =  tfc_rnn.GRUCell(num_units=config["top"]["decoder"]["num_units"],
-                                            activation=tf.nn.tanh,
-                                            reuse=reuse)
+            self.decoder_cell = tfc_rnn.GRUCell(num_units=config["top"]["decoder"]["num_units"],
+                                                activation=tf.nn.tanh,
+                                                reuse=reuse)
 
+            self.decoder_projection_layer = tf.layers.Dense(num_words, use_bias=False)
 
-            training_helper = tfc_seq.TrainingHelper(inputs=word_emb_question, #  The question is the target
+            training_helper = tfc_seq.TrainingHelper(inputs=self.word_emb_question,  # The question is the target
                                                      sequence_length=self._seq_length_question)
 
-            projection_layer = tf.layers.Dense(num_words, use_bias=False)
-
-            decoder = tf.contrib.seq2seq.BasicDecoder(
-                decoder_cell, training_helper, self.final_embedding,
-                output_layer=projection_layer)
-
-            (decoder_outputs,_), _, _ = tfc_seq.dynamic_decode(decoder)#,
-                                                        #maximum_iterations=config["top"]["decoder"]["maximum_iterations"])
-
-            # tfc_seq.GreedyEmbeddingHelper(
-            #     word_emb_dialogue,
-            #     tf.fill([batch_size], start_token), stop_token)
-
+            decoder_outputs, _ = self._create_decoder_graph(training_helper, max_tokens=None)
 
             #####################
             #   LOSS
@@ -141,22 +133,69 @@ class QGenNetworkDecoder(AbstractNetwork):
 
             # compute the softmax for evaluation
             with tf.variable_scope('decoder_output'):
-                self.cross_entropy_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=decoder_outputs, labels=self._question)
-                self.cross_entropy_loss_1 = self.cross_entropy_loss * self._question_mask
+                self.cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=decoder_outputs, labels=self._question)
+                self.cross_entropy = self.cross_entropy * self._question_mask
 
                 count = tf.reduce_sum(self._question_mask)
 
-                self.cross_entropy_loss_2 = tf.reduce_sum(self.cross_entropy_loss_1)
-                self.cross_entropy_loss_3 = self.cross_entropy_loss_2 / count
+                self.cross_entropy_loss = tf.reduce_sum(self.cross_entropy)
+                self.cross_entropy_loss = self.cross_entropy_loss / count
 
                 self.softmax_output = tf.nn.softmax(decoder_outputs, name="softmax")
                 self.argmax_output = tf.argmax(decoder_outputs, axis=2)
 
                 if not policy_gradient:
-                    self.loss = self.cross_entropy_loss_3
+                    self.loss = self.cross_entropy_loss
 
+    def _create_decoder_graph(self, helper, max_tokens):
 
+        decoder = tf.contrib.seq2seq.BasicDecoder(
+            self.decoder_cell, helper, self.final_embedding,
+            output_layer=self.decoder_projection_layer)
 
+        (sample_outputs, _), _, final_sequence_lengths = tfc_seq.dynamic_decode(decoder, maximum_iterations=max_tokens)
+
+        return sample_outputs, final_sequence_lengths
+
+    def create_sampling_graph(self, start_token, stop_token, max_tokens):
+
+        batch_size = tf.size(self._question)[0]
+        sample_helper = tfc_seq.SampleEmbeddingHelper(embedding=self.question_emb_weights,
+                                                      start_tokens=tf.fill([batch_size], start_token),
+                                                      end_token=stop_token)
+
+        return self._create_decoder_graph(sample_helper, max_tokens=max_tokens)
+
+    def create_greedy_graph(self, start_token, stop_token, max_tokens):
+
+        batch_size = tf.size(self._question)[0]
+        greedy_helper = tfc_seq.GreedyEmbeddingHelper(embedding=self.question_emb_weights,
+                                                      start_tokens=tf.fill([batch_size], start_token),
+                                                      end_token=stop_token)
+
+        self._create_decoder_graph(greedy_helper, max_tokens=max_tokens)
+
+    def create_beam_graph(self, start_token, stop_token, max_tokens, k_best):
+
+        # create k_beams
+        decoder_initial_state = tf.contrib.seq2seq.tile_batch(
+            self.final_embedding, multiplier=k_best)
+
+        # Define a beam-search decoder
+        batch_size = tf.size(self._question)[0]
+        decoder = tf.contrib.seq2seq.BeamSearchDecoder(
+            cell=self.decoder_cell,
+            embedding=self.question_emb_weights,
+            start_tokens=tf.fill([batch_size], start_token),
+            end_token=stop_token,
+            initial_state=decoder_initial_state,
+            beam_width=k_best,
+            output_layer=self.decoder_projection_layer,
+            length_penalty_weight=0.0)
+
+        (sample_outputs, _), _, final_sequence_lengths = tfc_seq.dynamic_decode(decoder, maximum_iterations=max_tokens)
+
+        return sample_outputs, final_sequence_lengths
 
     def get_loss(self):
         return self.loss
@@ -165,17 +204,15 @@ class QGenNetworkDecoder(AbstractNetwork):
         return self.loss
 
 
-
-    #TODO build graph
-    # decoder = tf.contrib.seq2seq.BasicDecoder(
-    #     decoder_cell, training_helper, self.final_embedding,
-    #     output_layer=projection_layer)
-
-
 if __name__ == "__main__":
 
     import json
     with open("../../../../config/qgen/config.film.json", 'rb') as f_config:
         config = json.load(f_config)
 
-    QGenNetworkDecoder(config["model"], num_words=354, start_token=1, stop_token=2, policy_gradient=False)
+    network = QGenNetworkDecoder(config["model"], num_words=354, policy_gradient=False)
+
+    network.create_sampling_graph(start_token=1, stop_token=2, max_tokens=10)
+    network.create_greedy_graph(start_token=1, stop_token=2, max_tokens=10)
+    network.create_beam_graph(start_token=1, stop_token=2, max_tokens=10, k_best=5)
+
