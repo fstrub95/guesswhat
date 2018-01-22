@@ -5,10 +5,11 @@ import neural_toolbox.ft_utils as ft_utils
 import neural_toolbox.rnn as rnn
 
 from generic.tf_factory.image_factory import get_image_features
+from generic.tf_utils.abstract_network import ResnetModel
 from generic.utils.config import get_recursively
 
-from generic.tf_utils.abstract_network import ResnetModel
 from neural_toolbox.film_stack import FiLM_Stack
+from neural_toolbox.reading_unit import create_reading_unit, create_film_layer_with_reading_unit
 
 
 class FiLM_Oracle(ResnetModel):
@@ -45,14 +46,16 @@ class FiLM_Oracle(ResnetModel):
                 word_emb = tf.concat([word_emb, self._glove], axis=2)
 
             word_emb = tf.nn.dropout(word_emb, dropout_keep)
-            self.rnn_states, self.last_rnn_state = rnn.gru_factory(
+            self.rnn_states, self.last_rnn_states = rnn.gru_factory(
                 inputs=word_emb,
                 seq_length=self._seq_length,
                 num_hidden=config["question"]["rnn_state_size"],
                 bidirectional=config["question"]["bidirectional"],
                 max_pool=config["question"]["max_pool"],
                 reuse=reuse)
-            self.last_rnn_state = tf.nn.dropout(self.last_rnn_state, dropout_keep)
+
+            self.last_rnn_states = tf.nn.dropout(self.last_rnn_states, dropout_keep)
+            self.rnn_states = tf.nn.dropout(self.rnn_states, dropout_keep)  # Note that the last_states may have a different dropout... TODO: study impact
 
             #####################
             #   ORACLE SIDE INPUTS
@@ -96,7 +99,7 @@ class FiLM_Oracle(ResnetModel):
             if config["inputs"]["image"]:
                 self._image = tf.placeholder(tf.float32, [self.batch_size] + config['image']["dim"], name='image')
                 self.image_out = get_image_features(
-                    image=self._image, question=self.last_rnn_state,
+                    image=self._image, question=self.last_rnn_states,
                     is_training=self._is_training,
                     scope_name="image_processing",
                     config=config['image'],
@@ -115,9 +118,6 @@ class FiLM_Oracle(ResnetModel):
                     self.film_img_input = []
                     with tf.variable_scope("image_film_input", reuse=reuse):
 
-                        if config["image"]["film_input"]["question"]:
-                            self.film_img_input.append(self.last_rnn_state)
-
                         if config["image"]["film_input"]["category"]:
                             self.film_img_input.append(cat_emb)
 
@@ -129,7 +129,13 @@ class FiLM_Oracle(ResnetModel):
                             flat_mask = tf.reshape(self._mask, shape=[-1, mask_dim])
                             self.film_crop_input.append(flat_mask)
 
-                        self.film_img_input = tf.concat(self.film_img_input, axis=1)
+                    with tf.variable_scope("image_reading_cell"):
+
+                        self.reading_unit = create_reading_unit(last_state=self.last_rnn_states,
+                                                                states=self.rnn_states,
+                                                                config=config["image"]["film_input"]["reading_unit"])
+
+                        film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit)
 
                     with tf.variable_scope("image_film_stack", reuse=reuse):
 
@@ -142,7 +148,8 @@ class FiLM_Oracle(ResnetModel):
 
                         self.film_img_stack = FiLM_Stack(image=self.image_out,
                                                          film_input=self.film_img_input,
-                                                         attention_input=self.last_rnn_state,
+                                                         attention_input=self.last_rnn_states,
+                                                         film_layer_fct=film_layer_fct,
                                                          is_training=self._is_training,
                                                          dropout_keep=dropout_keep,
                                                          config=config["image"]["film_block"],
@@ -158,7 +165,7 @@ class FiLM_Oracle(ResnetModel):
             if config["inputs"]["crop"]:
                 self._crop = tf.placeholder(tf.float32, [self.batch_size] + config['crop']["dim"], name='crop')
                 self.crop_out = get_image_features(
-                    image=self._crop, question=self.last_rnn_state,
+                    image=self._crop, question=self.last_rnn_states,
                     is_training=self._is_training,
                     scope_name="crop_processing",
                     config=config['crop'],
@@ -178,7 +185,7 @@ class FiLM_Oracle(ResnetModel):
                     with tf.variable_scope("image_film_input", reuse=reuse):
 
                         if config["crop"]["film_input"]["question"]:
-                            self.film_crop_input.append(self.last_rnn_state)
+                            self.film_crop_input.append(self.last_rnn_states)
 
                         if config["crop"]["film_input"]["category"]:
                             self.film_crop_input.append(cat_emb)
@@ -204,7 +211,7 @@ class FiLM_Oracle(ResnetModel):
 
                         self.film_crop_stack = FiLM_Stack(image=self.crop_out,
                                                           film_input=self.film_crop_input,
-                                                          attention_input=self.last_rnn_state,
+                                                          attention_input=self.last_rnn_states,
                                                           is_training=self._is_training,
                                                           dropout_keep=dropout_keep,
                                                           config=config["crop"]["film_block"],
@@ -220,7 +227,7 @@ class FiLM_Oracle(ResnetModel):
 
             with tf.variable_scope("classifier", reuse=reuse):
                 if config["classifier"]["inputs"]["question"]:
-                    self.classifier_input.append(self.last_rnn_state)
+                    self.classifier_input.append(self.last_rnn_states)
 
                 if config["classifier"]["inputs"]["category"]:
                     self.classifier_input.append(cat_emb)

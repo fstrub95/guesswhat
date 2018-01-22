@@ -54,7 +54,16 @@
         "question": true,
         "category": true,
         "spatial": false,
-        "mask": false
+        "mask": false,
+
+        "reading_unit" :
+        {
+          "reading_unit_type" : "basic",
+          "attention_units" : 128,
+          "rnn_size" : 256,
+          "shared_attention" : true,
+          "fuse_mode" : "dot"
+        }
       },
 
       "film_block":
