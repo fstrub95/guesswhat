@@ -3,8 +3,10 @@ import tensorflow.contrib.layers as tfc_layers
 
 from generic.tf_utils.abstract_network import AbstractNetwork
 from neural_toolbox import rnn, utils
+import neural_toolbox.ft_utils as ft_utils
 
 from generic.tf_factory.image_factory import get_image_features
+from neural_toolbox.film_stack import FiLM_Stack
 
 class GuesserNetwork(AbstractNetwork):
     def __init__(self, config, num_words, device='', reuse=False):
@@ -23,10 +25,10 @@ class GuesserNetwork(AbstractNetwork):
             # In config file, if the size of the projection is not specified for dialogue, don't project it at all
             # The object will be projected to match the lstm output
             if config['dialog_emb_dim'] != 0:
-                project_dialogue = True
+                project_vizdial_embedding = True
                 dialog_emb_dim = config['dialog_emb_dim']
             else:
-                project_dialogue = False
+                project_vizdial_embedding = False
                 dialog_emb_dim = config['num_lstm_units']
 
             # Dialogues
@@ -74,7 +76,7 @@ class GuesserNetwork(AbstractNetwork):
                 scope="input_word_embedding",
                 reuse=reuse)
 
-            self.last_states, _ = rnn.variable_length_LSTM(word_emb,
+            self.visual_dialogue_embedding, _ = rnn.variable_length_LSTM(word_emb,
                                                       num_hidden=config['num_lstm_units'],
                                                       seq_length=self._seq_length,
                                                       dropout_keep_prob=dropout_keep)
@@ -82,20 +84,53 @@ class GuesserNetwork(AbstractNetwork):
             #####################
             #   IMAGES
             #####################
-            self.visual_dialogue_embedding = self.last_states
             if 'image' in config:
 
                 self._image = tf.placeholder(tf.float32, [batch_size] + config['image']["dim"], name='image')
                 self.image_out = get_image_features(
-                    image=self._image, question=self.last_states,
+                    image=self._image, question=self.visual_dialogue_embedding,
                     is_training=self._is_training,
                     scope_name="image_processing",
                     config=config['image'],
                     dropout_keep=dropout_keep)
 
-                self.visual_dialogue_embedding = tf.concat([self.visual_dialogue_embedding , self.image_out], axis=-1)
+                if "film_input" in config['image']:
 
-            if project_dialogue:
+                    self.film_img_input = []
+                    with tf.variable_scope("image_film_input", reuse=reuse):
+                        if config["image"]["film_input"]["question"]:
+                            self.film_img_input.append(self.visual_dialogue_embedding)
+                        else:
+                            raise NotImplementedError("Can only use dialog to condition image at the moment")
+
+                        self.film_img_input = tf.concat(self.film_img_input, axis=1)
+
+                    with tf.variable_scope("image_film_stack", reuse=reuse):
+
+                        def append_extra_features(features, config):
+                            if config["spatial_location"]:  # add the pixel location as two additional feature map
+                                features = ft_utils.append_spatial_location(features)
+                            if config["mask"]:  # add the mask on the object as one additional feature map
+                                features = tf.concat([features, self._mask], axis=3)
+                            return features
+
+                        self.film_img_stack = FiLM_Stack(image=self.image_out,
+                                                         film_input=self.film_img_input,
+                                                         attention_input=self.visual_dialogue_embedding,
+                                                         is_training=self._is_training,
+                                                         dropout_keep=dropout_keep,
+                                                         config=config["image"]["film_block"],
+                                                         append_extra_features=append_extra_features,
+                                                         reuse=reuse)
+
+                        self.visual_dialogue_embedding = self.film_img_stack.get()
+
+                # If attention is not used on images and film not used, concatenate dialogue embedding and image features
+                elif config['image']['attention']['mode'] == "none" :
+                    self.visual_dialogue_embedding = tf.concat([self.visual_dialogue_embedding, self.image_out], axis=-1)
+
+
+            if project_vizdial_embedding:
                 self.visual_dialogue_projection = utils.fully_connected(
                     self.visual_dialogue_embedding,
                     n_out=dialog_emb_dim,
