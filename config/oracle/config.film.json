@@ -1,37 +1,40 @@
 {
+  "name" : "Baseline",
+
   "model": {
 
-    "name" : "CLEVR with FiLM",
     "type" : "film",
-    "split_question" : false,
+    "split_question" : true,
 
     "inputs": {
-      "crop": true,
-      "image": true
+      "crop": false,
+      "image": false,
+      "category": true,
+      "spatial": true
     },
 
     "question": {
-      "word_embedding_dim": 200,
-      "rnn_state_size": 2048,
+      "word_embedding_dim": 300,
+      "rnn_state_size": 512,
       "glove" : false,
-      "bidirectional" : true,
+      "bidirectional" : false,
       "max_pool" : false
     },
 
     "category": {
       "n_categories": 90,
-      "embedding_dim": 200
+      "embedding_dim": 512
     },
 
     "spatial": {
-      "no_mlp_units": 30
+      "no_mlp_units": 0
     },
 
     "classifier":
     {
       "inputs" :
       {
-       "question": false,
+       "question": true,
        "category": true,
        "spatial": true
       },
@@ -156,7 +159,7 @@
   },
 
   "optimizer": {
-    "no_epoch": 1,
+    "no_epoch": 15,
     "learning_rate": 3e-4,
     "batch_size": 64,
     "clip_val": 10.0,
