@@ -1,4 +1,6 @@
 {
+  "name" : "VIS seq2seq model",
+
   "model": {
 
     "word_embedding_size": 512,
@@ -20,7 +22,7 @@
     "dialogue":
     {
       "word_embedding_dim" : 300,
-      "share_decoder_emb": false,
+      "share_decoder_emb": true,
       "glove" : false,
       "rnn_state_size": 1024,
       "bidirectional" : true,

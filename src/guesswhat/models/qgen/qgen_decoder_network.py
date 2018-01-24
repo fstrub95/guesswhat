@@ -40,6 +40,9 @@ class QGenNetworkDecoder(AbstractNetwork):
                 scope_name="image_processing",
                 config=config['image'])
 
+            # TODO remove after FiLM
+            self.image_out = tf.nn.dropout(self.image_out, dropout_keep)
+
             #####################
             #   DIALOGUE
             #####################
@@ -125,7 +128,7 @@ class QGenNetworkDecoder(AbstractNetwork):
             training_helper = tfc_seq.TrainingHelper(inputs=self.word_emb_question,  # The question is the target
                                                      sequence_length=self._seq_length_question)
 
-            decoder_outputs, _ = self._create_decoder_graph(training_helper, max_tokens=None)
+            (decoder_outputs, _), _ , _ = self._create_decoder_graph(training_helper, max_tokens=None)
 
             #####################
             #   LOSS
@@ -144,8 +147,17 @@ class QGenNetworkDecoder(AbstractNetwork):
                 self.softmax_output = tf.nn.softmax(decoder_outputs, name="softmax")
                 self.argmax_output = tf.argmax(decoder_outputs, axis=2)
 
+                self.ml_loss = self.cross_entropy_loss
+
+
                 if not policy_gradient:
                     self.loss = self.cross_entropy_loss
+
+            # TEMPO : DO NOT USE THOSE LOSS -> TODO imolement RL loss
+            self.loss = self.cross_entropy_loss
+            self.policy_gradient_loss = self.cross_entropy_loss
+            self.baseline_loss = self.cross_entropy_loss
+
 
     def _create_decoder_graph(self, helper, max_tokens):
 
@@ -153,27 +165,29 @@ class QGenNetworkDecoder(AbstractNetwork):
             self.decoder_cell, helper, self.final_embedding,
             output_layer=self.decoder_projection_layer)
 
-        (sample_outputs, _), _, final_sequence_lengths = tfc_seq.dynamic_decode(decoder, maximum_iterations=max_tokens)
-
-        return sample_outputs, final_sequence_lengths
+        return tfc_seq.dynamic_decode(decoder, maximum_iterations=max_tokens)
 
     def create_sampling_graph(self, start_token, stop_token, max_tokens):
 
-        batch_size = tf.size(self._question)[0]
+        batch_size = tf.shape(self._dialogue)[0]
         sample_helper = tfc_seq.SampleEmbeddingHelper(embedding=self.question_emb_weights,
                                                       start_tokens=tf.fill([batch_size], start_token),
                                                       end_token=stop_token)
 
-        return self._create_decoder_graph(sample_helper, max_tokens=max_tokens)
+        (_, sample_id), _, seq_length = self._create_decoder_graph(sample_helper, max_tokens=max_tokens)
+
+        return sample_id, seq_length
 
     def create_greedy_graph(self, start_token, stop_token, max_tokens):
 
-        batch_size = tf.size(self._question)[0]
+        batch_size = tf.shape(self._dialogue)[0]
         greedy_helper = tfc_seq.GreedyEmbeddingHelper(embedding=self.question_emb_weights,
                                                       start_tokens=tf.fill([batch_size], start_token),
                                                       end_token=stop_token)
 
-        self._create_decoder_graph(greedy_helper, max_tokens=max_tokens)
+        (_, sample_id), _, seq_length = self._create_decoder_graph(greedy_helper, max_tokens=max_tokens)
+
+        return sample_id, seq_length
 
     def create_beam_graph(self, start_token, stop_token, max_tokens, k_best):
 
@@ -182,8 +196,8 @@ class QGenNetworkDecoder(AbstractNetwork):
             self.final_embedding, multiplier=k_best)
 
         # Define a beam-search decoder
-        batch_size = tf.size(self._question)[0]
-        decoder = tf.contrib.seq2seq.BeamSearchDecoder(
+        batch_size = tf.shape(self._dialogue)[0]
+        decoder = tfc_seq.BeamSearchDecoder(
             cell=self.decoder_cell,
             embedding=self.question_emb_weights,
             start_tokens=tf.fill([batch_size], start_token),
@@ -193,9 +207,9 @@ class QGenNetworkDecoder(AbstractNetwork):
             output_layer=self.decoder_projection_layer,
             length_penalty_weight=0.0)
 
-        (sample_outputs, _), _, final_sequence_lengths = tfc_seq.dynamic_decode(decoder, maximum_iterations=max_tokens)
+        (_, sample_id), _, seq_length = tfc_seq.dynamic_decode(decoder, maximum_iterations=max_tokens)
 
-        return sample_outputs, final_sequence_lengths
+        return sample_id, seq_length
 
     def get_loss(self):
         return self.loss

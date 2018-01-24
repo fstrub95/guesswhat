@@ -11,12 +11,12 @@ from generic.data_provider.nlp_utils import padder, padder_3d
 
 class LooperBatchifier(AbstractBatchifier):
 
-    def __init__(self, tokenizer, sources, generate_new_games, **kwargs):
+    def __init__(self, tokenizer, glove, generate_new_games, **kwargs):
         super(LooperBatchifier, self).__init__()
         self.tokenizer = tokenizer
-        self.sources = sources
         self.generate_new_games = generate_new_games
         self.kwargs = kwargs
+        assert glove is None, "Glove are not yet implemented!"
 
     def filter(self, games):
 
@@ -29,7 +29,9 @@ class LooperBatchifier(AbstractBatchifier):
             potential_game_list = [game for game in potential_game_dico.values()]
             random.shuffle(potential_game_list)
 
-            return copy.deepcopy(potential_game_list) # deep copy to perserve the original dataset
+            return copy.copy(potential_game_list)
+            # use deepcopy to perserve the original dataset
+            # TODO : I remove deep copy -> incompatible with h5. Check that pointers to target_object are not corrupted...
         else:
             return games
 
@@ -70,9 +72,9 @@ class LooperBatchifier(AbstractBatchifier):
             # image
             img = game.image.get_image()
             if img is not None:
-                if "images" not in batch:  # initialize an empty array for better memory consumption
-                    batch["images"] = np.zeros((batch_size,) + img.shape)
-                batch["images"][i] = img
+                if "image" not in batch:  # initialize an empty array for better memory consumption
+                    batch["image"] = np.zeros((batch_size,) + img.shape)
+                batch["image"][i] = img
 
 
         # Pad objects
@@ -86,4 +88,11 @@ class LooperBatchifier(AbstractBatchifier):
             batch['obj_mask'][i, :obj_length[i]] = 1.0
 
         return batch
+
+
+
+
+
+
+
 

@@ -115,6 +115,11 @@ if __name__ == '__main__':
         # batchifier = LSTMBatchifier(tokenizer, sources, status=('success',))
         batchifier = Seq2SeqBatchifier(tokenizer, sources, status=('success',))
 
+
+        from guesswhat.train.eval_listener import QGenListener
+        idx, _ = network.create_greedy_graph(start_token=tokenizer.start_token, stop_token=tokenizer.stop_dialogue, max_tokens=10)
+        listener = QGenListener(require=idx)
+
         best_val_loss = 1e5
         for t in range(0, config['optimizer']['no_epoch']):
 
@@ -128,9 +133,6 @@ if __name__ == '__main__':
                                       batchifier=batchifier,
                                       shuffle=True)
             [train_loss, _] = evaluator.process(sess, train_iterator, outputs=outputs + [optimizer])
-
-            from guesswhat.train.eval_listener import QGenListener
-            listener = QGenListener(require=network.argmax_output)
 
             valid_iterator = Iterator(validset, pool=cpu_pool,
                                       batch_size=batch_size*2,

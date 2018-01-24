@@ -9,18 +9,23 @@ from generic.data_provider.iterator import Iterator
 from generic.tf_utils.evaluator import Evaluator
 from generic.tf_utils.optimizer import create_optimizer
 from generic.data_provider.image_loader import get_img_builder
+from generic.data_provider.nlp_utils import GloveEmbeddings
+from generic.utils.config import load_config, get_config_from_xp, get_recursively
+from generic.utils.thread_pool import create_cpu_pool
 
-from guesswhat.models.oracle.oracle_network import OracleNetwork
+from guesswhat.models.oracle.oracle_factory import create_oracle
 from guesswhat.models.qgen.qgen_lstm_network import QGenNetworkLSTM
+from guesswhat.models.qgen.qgen_decoder_network import QGenNetworkDecoder
 from guesswhat.models.guesser.guesser_baseline import GuesserNetwork
 from guesswhat.models.looper.basic_looper import BasicLooper
 
+from guesswhat.models.qgen.qgen_wrapper import QGenWrapperDecoder
+from guesswhat.models.oracle.oracle_wrapper import OracleWrapper
+from guesswhat.models.guesser.guesser_wrapper import GuesserWrapper
+
 from guesswhat.data_provider.guesswhat_dataset import Dataset
-
 from guesswhat.data_provider.looper_batchifier import LooperBatchifier
-
 from guesswhat.data_provider.guesswhat_tokenizer import GWTokenizer
-from generic.utils.config import load_config, get_config_from_xp
 
 from guesswhat.train.utils import test_model, compute_qgen_accuracy
 
@@ -34,6 +39,7 @@ if __name__ == '__main__':
     parser.add_argument("-img_dir", type=str, help='Directory with images')
     parser.add_argument("-crop_dir", type=str, help='Directory with images')
     parser.add_argument("-config", type=str, required=True, help='Config file')
+    parser.add_argument("-glove_file", type=str, default="glove_dict.pkl", help="Glove file name")
     parser.add_argument("-dict_file", type=str, default="dict.json", help="Dictionary file name")
 
     parser.add_argument("-networks_dir", type=str, help="Directory with pretrained networks")
@@ -41,12 +47,12 @@ if __name__ == '__main__':
     parser.add_argument("-qgen_identifier", type=str, required=True, help='Qgen identifier')
     parser.add_argument("-guesser_identifier", type=str, required=True, help='Guesser identifier')
 
-    # parser.add_argument("-continue_exp", type=bool, default=False, help="Continue previously started experiment?")
-    parser.add_argument("-from_checkpoint", type=str, help="Start from checkpoint?")
+    parser.add_argument("-continue_exp", type=bool,  help="Continue previously started experiment?")
+    #parser.add_argument("-from_checkpoint", type=str, help="Start from checkpoint?")
     parser.add_argument("-skip_training", type=bool, default=False, help="Start from checkpoint?")
     parser.add_argument("-evaluate_all", type=bool, default=False, help="Evaluate sampling, greedy and BeamSearch?")  #TODO use an input list
     parser.add_argument("-store_games", type=bool, default=True, help="Should we dump the game at evaluation times")
-
+    parser.add_argument("-no_games_to_load", type=int, help="No games to use during training Default : all")
 
     parser.add_argument("-gpu_ratio", type=float, default=0.95, help="How muany GPU ram is required? (ratio)")
     parser.add_argument("-no_thread", type=int, default=1, help="No thread to load batch")
@@ -59,6 +65,7 @@ if __name__ == '__main__':
     oracle_config = get_config_from_xp(os.path.join(args.networks_dir, "oracle"), args.oracle_identifier)
     guesser_config = get_config_from_xp(os.path.join(args.networks_dir, "guesser"), args.guesser_identifier)
     qgen_config = get_config_from_xp(os.path.join(args.networks_dir, "qgen"), args.qgen_identifier)
+    configs = [loop_config, oracle_config, guesser_config, qgen_config]
 
     logger = logging.getLogger()
 
@@ -72,19 +79,28 @@ if __name__ == '__main__':
     image_builder = get_img_builder(qgen_config['model']['image'], args.img_dir)
 
     crop_builder = None
-    if oracle_config['inputs'].get('crop', False):
+    if oracle_config["model"]['inputs'].get('crop', False):
         logger.info('Loading crops..')
         crop_builder = get_img_builder(oracle_config['model']['crop'], args.crop_dir, is_crop=True)
+        use_resnet = crop_builder.is_raw_image()
+
 
     # Load data
     logger.info('Loading data..')
-    trainset = Dataset(args.data_dir, "train", image_builder, crop_builder)
-    validset = Dataset(args.data_dir, "valid", image_builder, crop_builder)
-    testset = Dataset(args.data_dir, "test", image_builder, crop_builder)
+    trainset = Dataset(args.data_dir, "train", image_builder, crop_builder, games_to_load=args.no_games_to_load)
+    validset = Dataset(args.data_dir, "valid", image_builder, crop_builder, args.no_games_to_load)
+    testset = Dataset(args.data_dir, "test", image_builder, crop_builder, args.no_games_to_load)
 
     # Load dictionary
     logger.info('Loading dictionary..')
-    tokenizer = GWTokenizer(os.path.join(args.data_dir, args.dict_file))
+    tokenizer = GWTokenizer(args.dict_file)
+
+    # Load glove
+    glove = None
+    if any([any(get_recursively(c, "glove")) for c in configs]):
+        logger.info('Loading glove..')
+        glove = GloveEmbeddings(args.glove_file)
+
 
     ###############################
     #  LOAD NETWORKS
@@ -92,11 +108,11 @@ if __name__ == '__main__':
 
     logger.info('Building networks..')
 
-    qgen_network = QGenNetworkLSTM(qgen_config["model"], num_words=tokenizer.no_words, policy_gradient=True)
-    qgen_var = [v for v in tf.global_variables() if "qgen" in v.name and 'rl_baseline' not in v.name]
+    qgen_network = QGenNetworkDecoder(qgen_config["model"], num_words=tokenizer.no_words, policy_gradient=True)
+    qgen_var = [v for v in tf.global_variables() if "qgen" in v.name] # and 'rl_baseline' not in v.name
     qgen_saver = tf.train.Saver(var_list=qgen_var)
 
-    oracle_network = OracleNetwork(oracle_config, no_words=tokenizer.no_words, no_answers=3)
+    oracle_network = create_oracle(oracle_config["model"], no_words=tokenizer.no_words)
     oracle_var = [v for v in tf.global_variables() if "oracle" in v.name]
     oracle_saver = tf.train.Saver(var_list=oracle_var)
 
@@ -112,21 +128,21 @@ if __name__ == '__main__':
 
     logger.info('Building optimizer..')
 
-    pg_variables = [v for v in tf.trainable_variables() if "qgen" in v.name and 'rl_baseline' not in v.name]
-    baseline_variables = [v for v in tf.trainable_variables() if "qgen" in v.name and 'rl_baseline' in v.name]
-
-    pg_optimize, _ = create_optimizer(qgen_network, loop_config,
-                                   var_list=pg_variables,
-                                   optim_cst=tf.train.GradientDescentOptimizer,
-                                   loss=qgen_network.policy_gradient_loss)
-    baseline_optimize, _= create_optimizer(qgen_network, loop_config,
-                                        var_list=baseline_variables,
-                                        optim_cst=tf.train.GradientDescentOptimizer,
-                                        apply_update_ops=False,
-                                        loss=qgen_network.baseline_loss)
-
-    optimizer = [pg_optimize, baseline_optimize]
-
+    # pg_variables = [v for v in tf.trainable_variables() if "qgen" in v.name and 'rl_baseline' not in v.name]
+    # baseline_variables = [v for v in tf.trainable_variables() if "qgen" in v.name and 'rl_baseline' in v.name]
+    #
+    # pg_optimize, _ = create_optimizer(qgen_network, loop_config["optimizer"],
+    #                                var_list=pg_variables,
+    #                                optim_cst=tf.train.GradientDescentOptimizer,
+    #                                loss=qgen_network.policy_gradient_loss)
+    # baseline_optimize, _= create_optimizer(qgen_network, loop_config["optimizer"],
+    #                                     var_list=baseline_variables,
+    #                                     optim_cst=tf.train.GradientDescentOptimizer,
+    #                                     apply_update_ops=False,
+    #                                     loss=qgen_network.baseline_loss)
+    #
+    # optimizer = [pg_optimize, baseline_optimize]
+    optimizer = None
 
     ###############################
     #  START TRAINING
@@ -144,7 +160,7 @@ if __name__ == '__main__':
     saver = tf.train.Saver()
 
     # CPU/GPU option
-    cpu_pool = Pool(args.no_thread, maxtasksperchild=1000)
+    cpu_pool = create_cpu_pool(args.no_thread, use_process=False)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu_ratio)
 
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
@@ -154,15 +170,13 @@ if __name__ == '__main__':
         #############################
 
         sess.run(tf.global_variables_initializer())
-        if args.from_checkpoint: # TODO only reload qgen ckpt
-            # start_epoch = load_checkpoint(sess, saver, args, save_path)
-            saver = tf.train.Saver()
-            saver.restore(sess, os.path.join(args.networks_dir, 'loop', args.from_checkpoint, 'params.ckpt'))
+        if args.continue_exp: # TODO only reload qgen ckpt
+            qgen_saver.restore(sess, save_path.format('params.ckpt'))
         else:
             qgen_saver.restore(sess, os.path.join(args.networks_dir, 'qgen', args.qgen_identifier, 'params.ckpt'))
-            oracle_saver.restore(sess, os.path.join(args.networks_dir, 'oracle', args.oracle_identifier, 'params.ckpt'))
-            guesser_saver.restore(sess, os.path.join(args.networks_dir, 'guesser', args.guesser_identifier, 'params.ckpt'))
 
+        oracle_saver.restore(sess, os.path.join(args.networks_dir, 'oracle', args.oracle_identifier, 'params.ckpt'))
+        guesser_saver.restore(sess, os.path.join(args.networks_dir, 'guesser', args.guesser_identifier, 'params.ckpt'))
 
         # create training tools
         loop_sources = qgen_network.get_sources(sess)
@@ -170,16 +184,23 @@ if __name__ == '__main__':
 
         evaluator = Evaluator(loop_sources, qgen_network.scope_name, network=qgen_network, tokenizer=tokenizer)
 
-        train_batchifier = LooperBatchifier(tokenizer, loop_sources, generate_new_games=True)
-        eval_batchifier = LooperBatchifier(tokenizer, loop_sources, generate_new_games=False)
+        train_batchifier = LooperBatchifier(tokenizer, glove=glove, generate_new_games=True)
+        eval_batchifier = LooperBatchifier(tokenizer, glove=glove, generate_new_games=False)
 
-        # Initialize the looper to eval/train the game-simulation
-        qgen_network.build_sampling_graph(qgen_config["model"], tokenizer=tokenizer, max_length=loop_config['loop']['max_depth'])
+
+        # Create network wrapper for the looper
+        oracle_wrapper = OracleWrapper(oracle_network, tokenizer)
+        guesser_wrapper = GuesserWrapper(guesser_network)
+        qgen_wrapper = QGenWrapperDecoder(qgen_network, tokenizer,
+                                   max_tokens=loop_config['loop']['max_depth'],
+                                   k_best=loop_config['loop']['beam_k_best'])
+
         looper_evaluator = BasicLooper(loop_config,
-                                       oracle=oracle_network,
-                                       guesser=guesser_network,
-                                       qgen=qgen_network,
-                                       tokenizer=tokenizer)
+                                       oracle_wrapper=oracle_wrapper,
+                                       guesser_wrapper=guesser_wrapper,
+                                       qgen_wrapper=qgen_wrapper,
+                                       tokenizer=tokenizer,
+                                       batch_size=loop_config["optimizer"]["batch_size"])
 
 
         # Compute the initial scores
