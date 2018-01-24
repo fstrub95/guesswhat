@@ -1,9 +1,10 @@
 {
 
-  "type" : "baseline",
-  "split_question" : true,
 
   "model": {
+
+    "type" : "baseline",
+    "split_question" : true,
 
     "inputs": {
       "question": true,
