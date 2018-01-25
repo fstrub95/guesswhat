@@ -1,7 +1,7 @@
 import argparse
 import logging
 import os
-from multiprocessing import Pool
+import collections
 
 import tensorflow as tf
 
@@ -11,7 +11,9 @@ from generic.tf_utils.optimizer import create_optimizer
 from generic.tf_utils.ckpt_loader import load_checkpoint
 from generic.utils.config import load_config
 from generic.utils.file_handlers import pickle_dump
+from generic.utils.thread_pool import create_cpu_pool
 from generic.data_provider.image_loader import get_img_builder
+from generic.data_provider.nlp_utils import GloveEmbeddings
 
 from guesswhat.data_provider.guesswhat_dataset import Dataset
 from guesswhat.data_provider.questioner_batchifier import LSTMBatchifier, Seq2SeqBatchifier
@@ -33,6 +35,7 @@ if __name__ == '__main__':
     parser.add_argument("-exp_dir", type=str, help="Directory in which experiments are stored")
     parser.add_argument("-config", type=str, help='Config file')
     parser.add_argument("-dict_file", type=str, default="dict.json", help="Dictionary file name")
+    parser.add_argument("-glove_file", type=str, default="glove_dict.pkl", help="Glove file name")
     parser.add_argument("-img_dir", type=str, help='Directory with images')
     parser.add_argument("-load_checkpoint", type=str, help="Load model parameters from specified checkpoint")
     parser.add_argument("-continue_exp", type=bool, default=False, help="Continue previously started experiment?")
@@ -63,6 +66,12 @@ if __name__ == '__main__':
     logger.info('Loading dictionary..')
     tokenizer = GWTokenizer(os.path.join(args.data_dir, args.dict_file))
 
+    # Load glove
+    glove = None
+    if config["model"]["dialogue"]['glove']:
+        logger.info('Loading glove..')
+        glove = GloveEmbeddings(args.glove_file)
+
     # Build Network
     logger.info('Building network..')
     # network = QGenNetworkLSTM(config["model"], num_words=tokenizer.no_words, policy_gradient=False)
@@ -70,7 +79,7 @@ if __name__ == '__main__':
 
     # Build Optimizer
     logger.info('Building optimizer..')
-    optimizer, outputs = create_optimizer(network, config)
+    optimizer, outputs = create_optimizer(network, config["optimizer"])
 
     ###############################
     #  START TRAINING
@@ -80,11 +89,17 @@ if __name__ == '__main__':
     batch_size = config['optimizer']['batch_size']
     no_epoch = config["optimizer"]["no_epoch"]
 
+    # Store experiments
+    data = dict()
+    data["hash_id"] = exp_identifier
+    data["config"] = config
+    data["args"] = args
+    data["loss"] = collections.defaultdict(list)
+
     # create a saver to store/load checkpoint
     saver = tf.train.Saver()
 
     # CPU/GPU option
-    cpu_pool = Pool(args.no_thread, maxtasksperchild=1000)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu_ratio)
 
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
@@ -105,31 +120,48 @@ if __name__ == '__main__':
 
             logger.info('Epoch {}..'.format(t + 1))
 
+            # Create cpu pools (at each iteration otherwise threads may become zombie - python bug)
+            cpu_pool = create_cpu_pool(args.no_thread, use_process=False)
+
             train_iterator = Iterator(trainset,
                                       batch_size=batch_size, pool=cpu_pool,
                                       batchifier=batchifier,
                                       shuffle=True)
             [train_loss, _] = evaluator.process(sess, train_iterator, outputs=outputs + [optimizer])
 
+            from guesswhat.train.eval_listener import QGenListener
+            listener = QGenListener(require=network.argmax_output)
+
             valid_iterator = Iterator(validset, pool=cpu_pool,
                                       batch_size=batch_size*2,
                                       batchifier=batchifier,
                                       shuffle=False)
-            [valid_loss, _] = evaluator.process(sess, valid_iterator, outputs=outputs)
+            [valid_loss] = evaluator.process(sess, valid_iterator, outputs=outputs, listener=listener)
+
+            question_tokens = listener.results
+            for qt in question_tokens:
+                logger.info(tokenizer.decode(qt))
+
 
             logger.info("Training loss: {}".format(train_loss))
             logger.info("Validation loss: {}".format(valid_loss))
+
+            data["loss"]["train"].append(train_loss)
+            data["loss"]["valid"].append(valid_loss)
 
             if valid_loss < best_val_loss:
                 best_train_loss = train_loss
                 best_val_loss = valid_loss
                 saver.save(sess, save_path.format('params.ckpt'))
-                logger.info("Guesser checkpoint saved...")
+                logger.info("QGen checkpoint saved...")
 
-                pickle_dump({'epoch': t}, save_path.format('status.pkl'))
+                data["ckpt_epoch"] = t
+
+                pickle_dump(data, save_path.format('status.pkl'))
 
         # Load early stopping
         saver.restore(sess, save_path.format('params.ckpt'))
+        cpu_pool = create_cpu_pool(args.no_thread, use_process=False)
         test_iterator = Iterator(testset, pool=cpu_pool,
                                  batch_size=batch_size*2,
                                  batchifier=batchifier,
@@ -137,3 +169,6 @@ if __name__ == '__main__':
         [test_loss, _] = evaluator.process(sess, test_iterator, outputs)
 
         logger.info("Testing loss: {}".format(test_loss))
+
+        data["loss"]["test"] = test_loss
+        pickle_dump(data, save_path.format('status.pkl'))

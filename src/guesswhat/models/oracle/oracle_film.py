@@ -5,10 +5,11 @@ import neural_toolbox.ft_utils as ft_utils
 import neural_toolbox.rnn as rnn
 
 from generic.tf_factory.image_factory import get_image_features
-
 from generic.tf_utils.abstract_network import ResnetModel
-from neural_toolbox.film_stack import FiLM_Stack
+from generic.utils.config import get_recursively
 
+from neural_toolbox.film_stack import FiLM_Stack
+from neural_toolbox.reading_unit import create_reading_unit, create_film_layer_with_reading_unit
 
 
 class FiLM_Oracle(ResnetModel):
@@ -33,7 +34,6 @@ class FiLM_Oracle(ResnetModel):
             self._seq_length = tf.placeholder(tf.int32, [self.batch_size], name='seq_length')
             self._answer = tf.placeholder(tf.int64, [self.batch_size, no_answers], name='answer')
 
-
             word_emb = tfc_layers.embed_sequence(
                 ids=self._question,
                 vocab_size=no_words,
@@ -46,22 +46,23 @@ class FiLM_Oracle(ResnetModel):
                 word_emb = tf.concat([word_emb, self._glove], axis=2)
 
             word_emb = tf.nn.dropout(word_emb, dropout_keep)
-            self.rnn_states, self.last_rnn_state = rnn.gru_factory(
+            self.rnn_states, self.last_rnn_states = rnn.gru_factory(
                 inputs=word_emb,
                 seq_length=self._seq_length,
                 num_hidden=config["question"]["rnn_state_size"],
                 bidirectional=config["question"]["bidirectional"],
                 max_pool=config["question"]["max_pool"],
                 reuse=reuse)
-            self.last_rnn_state = tf.nn.dropout(self.last_rnn_state, dropout_keep)
 
+            self.last_rnn_states = tf.nn.dropout(self.last_rnn_states, dropout_keep)
+            self.rnn_states = tf.nn.dropout(self.rnn_states, dropout_keep)  # Note that the last_states may have a different dropout... TODO: study impact
 
             #####################
             #   ORACLE SIDE INPUTS
             #####################
 
             # Category
-            if config["inputs"].get("category", True):
+            if any(get_recursively(config, "category", no_field_recursive=True)):
                 self._category = tf.placeholder(tf.int32, [self.batch_size], name='category')
 
                 cat_emb = tfc_layers.embed_sequence(
@@ -75,14 +76,14 @@ class FiLM_Oracle(ResnetModel):
                 cat_emb = None
 
             # Spatial
-            if config["inputs"].get("spatial", True):
+            if any(get_recursively(config, "category", no_field_recursive=True)):
                 self._spatial = tf.placeholder(tf.float32, [self.batch_size, 8], name='spatial')
                 if config["spatial"]["no_mlp_units"] > 0:
                     spatial_emb = tfc_layers.fully_connected(self._spatial,
-                                                                   num_outputs=config["spatial"]["no_mlp_units"],
-                                                                   activation_fn=tf.nn.relu,
-                                                                   reuse=reuse,
-                                                                   scope="spatial_upsampling")
+                                                             num_outputs=config["spatial"]["no_mlp_units"],
+                                                             activation_fn=tf.nn.relu,
+                                                             reuse=reuse,
+                                                             scope="spatial_upsampling")
                     spatial_emb = tf.nn.dropout(spatial_emb, dropout_keep)
                 else:
                     spatial_emb = self._spatial
@@ -95,11 +96,10 @@ class FiLM_Oracle(ResnetModel):
             #   IMAGES
             #####################
 
-
             if config["inputs"]["image"]:
                 self._image = tf.placeholder(tf.float32, [self.batch_size] + config['image']["dim"], name='image')
                 self.image_out = get_image_features(
-                    image=self._image, question=self.last_rnn_state,
+                    image=self._image, question=self.last_rnn_states,
                     is_training=self._is_training,
                     scope_name="image_processing",
                     config=config['image'],
@@ -118,9 +118,6 @@ class FiLM_Oracle(ResnetModel):
                     self.film_img_input = []
                     with tf.variable_scope("image_film_input", reuse=reuse):
 
-                        if config["image"]["film_input"]["question"]:
-                            self.film_img_input.append(self.last_rnn_state)
-
                         if config["image"]["film_input"]["category"]:
                             self.film_img_input.append(cat_emb)
 
@@ -132,21 +129,27 @@ class FiLM_Oracle(ResnetModel):
                             flat_mask = tf.reshape(self._mask, shape=[-1, mask_dim])
                             self.film_crop_input.append(flat_mask)
 
-                        self.film_img_input = tf.concat(self.film_img_input, axis=1)
+                    with tf.variable_scope("image_reading_cell"):
+
+                        self.reading_unit = create_reading_unit(last_state=self.last_rnn_states,
+                                                                states=self.rnn_states,
+                                                                config=config["image"]["film_input"]["reading_unit"])
+
+                        film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit)
 
                     with tf.variable_scope("image_film_stack", reuse=reuse):
 
                         def append_extra_features(features, config):
-                            if config["spatial_location"]: # add the pixel location as two additional feature map
+                            if config["spatial_location"]:  # add the pixel location as two additional feature map
                                 features = ft_utils.append_spatial_location(features)
-                            if config["mask"]: # add the mask on the object as one additional feature map
+                            if config["mask"]:  # add the mask on the object as one additional feature map
                                 features = tf.concat([features, self._mask], axis=3)
                             return features
 
-
                         self.film_img_stack = FiLM_Stack(image=self.image_out,
                                                          film_input=self.film_img_input,
-                                                         attention_input=self.last_rnn_state,
+                                                         attention_input=self.last_rnn_states,
+                                                         film_layer_fct=film_layer_fct,
                                                          is_training=self._is_training,
                                                          dropout_keep=dropout_keep,
                                                          config=config["image"]["film_block"],
@@ -162,7 +165,7 @@ class FiLM_Oracle(ResnetModel):
             if config["inputs"]["crop"]:
                 self._crop = tf.placeholder(tf.float32, [self.batch_size] + config['crop']["dim"], name='crop')
                 self.crop_out = get_image_features(
-                    image=self._crop, question=self.last_rnn_state,
+                    image=self._crop, question=self.last_rnn_states,
                     is_training=self._is_training,
                     scope_name="crop_processing",
                     config=config['crop'],
@@ -182,7 +185,7 @@ class FiLM_Oracle(ResnetModel):
                     with tf.variable_scope("image_film_input", reuse=reuse):
 
                         if config["crop"]["film_input"]["question"]:
-                            self.film_crop_input.append(self.last_rnn_state)
+                            self.film_crop_input.append(self.last_rnn_states)
 
                         if config["crop"]["film_input"]["category"]:
                             self.film_crop_input.append(cat_emb)
@@ -200,15 +203,15 @@ class FiLM_Oracle(ResnetModel):
                     with tf.variable_scope("crop_film_stack", reuse=reuse):
 
                         def append_extra_features(features, config):
-                            if config["spatial_location"]: # add the pixel location as two additional feature map
+                            if config["spatial_location"]:  # add the pixel location as two additional feature map
                                 features = ft_utils.append_spatial_location(features)
-                            if config["mask"]: # add the mask on the object as one additional feature map
+                            if config["mask"]:  # add the mask on the object as one additional feature map
                                 features = tf.concat([features, self._mask_crop], axis=3)
                             return features
 
                         self.film_crop_stack = FiLM_Stack(image=self.crop_out,
                                                           film_input=self.film_crop_input,
-                                                          attention_input=self.last_rnn_state,
+                                                          attention_input=self.last_rnn_states,
                                                           is_training=self._is_training,
                                                           dropout_keep=dropout_keep,
                                                           config=config["crop"]["film_block"],
@@ -222,30 +225,31 @@ class FiLM_Oracle(ResnetModel):
             #   FINAL LAYER
             #####################
 
-            if config["classifier"]["inputs"]["question"]:
-                self.classifier_input.append(self.last_rnn_state)
+            with tf.variable_scope("classifier", reuse=reuse):
+                if config["classifier"]["inputs"]["question"]:
+                    self.classifier_input.append(self.last_rnn_states)
 
-            if config["classifier"]["inputs"]["category"]:
-                self.classifier_input.append(cat_emb)
+                if config["classifier"]["inputs"]["category"]:
+                    self.classifier_input.append(cat_emb)
 
-            if config["classifier"]["inputs"]["spatial"]:
-                self.classifier_input.append(spatial_emb)
+                if config["classifier"]["inputs"]["spatial"]:
+                    self.classifier_input.append(spatial_emb)
 
-            assert len(self.classifier_input) > 0, "Please provide some inputs for the classifier!!!"
-            self.classifier_input = tf.concat(self.classifier_input, axis=1)
+                assert len(self.classifier_input) > 0, "Please provide some inputs for the classifier!!!"
+                self.classifier_input = tf.concat(self.classifier_input, axis=1)
 
-            self.hidden_state = tfc_layers.fully_connected(self.classifier_input,
-                                                           num_outputs=config["classifier"]["no_mlp_units"],
-                                                           activation_fn=tf.nn.relu,
-                                                           reuse=reuse,
-                                                           scope="classifier_hidden_layer")
+                self.hidden_state = tfc_layers.fully_connected(self.classifier_input,
+                                                               num_outputs=config["classifier"]["no_mlp_units"],
+                                                               activation_fn=tf.nn.relu,
+                                                               reuse=reuse,
+                                                               scope="classifier_hidden_layer")
 
-            self.hidden_state = tf.nn.dropout(self.hidden_state, dropout_keep)
-            self.out = tfc_layers.fully_connected(self.hidden_state,
-                                                         num_outputs=no_answers,
-                                                         activation_fn=None,
-                                                         reuse=reuse,
-                                                         scope="classifier_softmax_layer")
+                self.hidden_state = tf.nn.dropout(self.hidden_state, dropout_keep)
+                self.out = tfc_layers.fully_connected(self.hidden_state,
+                                                      num_outputs=no_answers,
+                                                      activation_fn=None,
+                                                      reuse=reuse,
+                                                      scope="classifier_softmax_layer")
 
             #####################
             #   Loss
@@ -259,7 +263,6 @@ class FiLM_Oracle(ResnetModel):
 
             self.success = tf.equal(self.prediction, tf.argmax(self._answer, axis=1))  # no need to compute the softmax
 
-
             with tf.variable_scope('accuracy'):
                 self.accuracy = tf.equal(self.prediction, tf.argmax(self._answer, axis=1))
                 self.accuracy = tf.reduce_mean(tf.cast(self.accuracy, tf.float32))
@@ -267,7 +270,6 @@ class FiLM_Oracle(ResnetModel):
             tf.summary.scalar('accuracy', self.accuracy)
 
             print('Model... build!')
-
 
     def get_loss(self):
         return self.loss
@@ -281,5 +283,7 @@ if __name__ == "__main__":
     import json
     with open("../../../../config/oracle/config.film.json", 'rb') as f_config:
         config = json.load(f_config)
+
+    get_recursively(config, "spatial", no_field_recursive=True)
 
     FiLM_Oracle(config["model"], no_words=354, no_answers=3)

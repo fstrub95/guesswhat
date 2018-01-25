@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import collections
 
 import tensorflow as tf
 
@@ -43,13 +44,10 @@ if __name__ == '__main__':
     parser.add_argument("-no_thread", type=int, default=2, help="No thread to load batch")
     parser.add_argument("-no_games_to_load", type=int, help="No games to use during training Default : all")
 
-
     args = parser.parse_args()
 
     config, exp_identifier, save_path = load_config(args.config, args.exp_dir, args)
     logger = logging.getLogger()
-
-    logger.info("Config name : {}".format(config["model"]["name"]))
 
     # Load config
     finetune = config["model"]["image"].get('finetune', list())
@@ -78,9 +76,9 @@ if __name__ == '__main__':
 
     # Load data
     logger.info('Loading data..')
-    trainset = Dataset(args.data_dir, "train", image_builder, crop_builder)
-    validset = Dataset(args.data_dir, "valid", image_builder, crop_builder)
-    testset = Dataset(args.data_dir, "test", image_builder, crop_builder)
+    trainset = Dataset(args.data_dir, "train", image_builder, crop_builder, args.no_games_to_load)
+    validset = Dataset(args.data_dir, "valid", image_builder, crop_builder, args.no_games_to_load)
+    testset = Dataset(args.data_dir, "test", image_builder, crop_builder, args.no_games_to_load)
 
     # Load dictionary
     logger.info('Loading dictionary..')
@@ -107,6 +105,14 @@ if __name__ == '__main__':
     # create a saver to store/load checkpoint
     saver = tf.train.Saver()
     resnet_saver = None
+
+    # Store experiments
+    data = dict()
+    data["hash_id"] = exp_identifier
+    data["config"] = config
+    data["args"] = args
+    data["loss"] = collections.defaultdict(list)
+    data["error"] = collections.defaultdict(list)
 
     # Retrieve only resnet variabes
     if use_resnet:
@@ -162,13 +168,22 @@ if __name__ == '__main__':
             logger.info("Validation loss : {}".format(valid_loss))
             logger.info("Validation error: {}".format(1-valid_accuracy))
 
-            if valid_accuracy > best_val_err:
-                best_train_err = train_accuracy
-                best_val_err = valid_accuracy
-                saver.save(sess, save_path.format('params.ckpt'))
-                logger.info("Oracle checkpoint saved...")
+            data["loss"]["train"].append(train_loss)
+            data["loss"]["valid"].append(valid_loss)
+            data["error"]["train"].append(1-train_accuracy)
+            data["error"]["valid"].append(1-valid_accuracy)
 
-                pickle_dump({'epoch': t}, save_path.format('status.pkl'))
+            if valid_accuracy > best_val_err:
+                    best_train_err = train_accuracy
+                    best_val_err = valid_accuracy
+                    saver.save(sess, save_path.format('params.ckpt'))
+                    logger.info("Oracle checkpoint saved...")
+
+                    data["ckpt_epoch"] = t
+
+                    pickle_dump(data, save_path.format('status.pkl'))
+
+
 
         # Load early stopping
         saver.restore(sess, save_path.format('params.ckpt'))
@@ -186,11 +201,15 @@ if __name__ == '__main__':
         [test_loss, test_accuracy] = evaluator.process(sess, test_iterator, outputs, listener=oracle_listener)
 
         dump_oracle(oracle_listener.get_answers(), games=testset.games,
-                                 save_path=save_path,
-                                 name="oracle")
+                    save_path=save_path,
+                    name="oracle")
 
         logger.info("Testing loss : {}".format(test_loss))
         logger.info("Testing error: {}".format(1-test_accuracy))
+
+        data["loss"]["test"] = test_loss
+        data["loss"]["error"] = (1-test_accuracy)
+        pickle_dump(data, save_path.format('status.pkl'))
 
         # batchifier.ignore_NA = True
         # test_iterator = Iterator(testset, pool=cpu_pool, batch_size=batch_size * 2, batchifier=batchifier, shuffle=False)

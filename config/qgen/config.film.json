@@ -1,0 +1,56 @@
+{
+  "model": {
+
+    "word_embedding_size": 512,
+    "num_lstm_units": 1024,
+    "image_embedding_size": 512,
+
+    "image":
+    {
+      "image_input": "conv",
+      "dim": [14, 14, 1024],
+      "normalize": false,
+
+      "attention" : {
+        "mode": "max"
+      }
+
+    },
+
+    "dialogue":
+    {
+      "word_embedding_dim" : 300,
+      "share_decoder_emb": false,
+      "glove" : false,
+      "rnn_state_size": 1024,
+      "bidirectional" : true,
+      "max_pool" : false
+    },
+
+    "top":
+    {
+      "vis": {
+        "projection_size": 1024,
+        "embedding_size": 512
+      },
+
+      "decoder":
+      {
+        "num_units": 512,
+        "maximum_iterations": 20
+      }
+
+    }
+
+  },
+
+  "optimizer": {
+    "no_epoch": 15,
+    "learning_rate": 1e-4,
+    "batch_size": 32,
+    "clip_val": 5
+  },
+
+  "seed": -1
+
+}

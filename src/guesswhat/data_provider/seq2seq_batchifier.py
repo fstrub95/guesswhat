@@ -47,6 +47,7 @@ class QuestionerBatchifier(AbstractBatchifier):
 
             batch["dialogue"].append(dialogue)
             batch["question"].append(q_tokens[-1])
+            batch["question_mask"].append([1] * (len(q_tokens[-1] - 1)) + [0]) # [1]: words minus start token, [0]: keep dimension of question
 
             # image
             img = game.image.get_image()
@@ -56,11 +57,9 @@ class QuestionerBatchifier(AbstractBatchifier):
                 batch["image"][i] = img
 
         # Pad dialogue tokens tokens
-        batch['dialogue'], batch['seq_length_dialogue'] = padder(batch['dialogues'], padding_symbol=self.tokenizer.padding_token)
+        batch['dialogue'], batch['seq_length_dialogue'] = padder(batch['dialogue'], padding_symbol=self.tokenizer.padding_token)
         batch['question'], batch['seq_length_question'] = padder(batch['question'], padding_symbol=self.tokenizer.padding_token)
 
+        batch['question_mask'], _ = padder(batch['question_mask'], padding_symbol=0)
+
         return batch
-
-
-
-

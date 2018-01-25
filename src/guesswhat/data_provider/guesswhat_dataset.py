@@ -48,6 +48,7 @@ class Game:
         self.answers = [qa['answer'] for qa in qas]
         self.status = status
 
+        self.is_full_dialogue = True
 
 class Image:
     def __init__(self, id, width, height, url, which_set, image_builder=None):
@@ -153,9 +154,9 @@ class Dataset(AbstractDataset):
 
                 # If no_games_to_load is defined : Loading a certain number of games
                 if len(games) > games_to_load:
-                    print("Loading partial games (Don't use --no_games_to_load if you want to load all games")
                     break
 
+        print("{} games were loaded...".format(len(games) ))
         super(Dataset, self).__init__(games)
 
 

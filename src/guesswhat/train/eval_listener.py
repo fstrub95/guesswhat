@@ -35,3 +35,30 @@ class OracleListener(EvaluatorListener):
 
     def get_answers(self):
         return self.results
+
+
+class QGenListener(EvaluatorListener):
+    def __init__(self, require):
+        super(QGenListener, self).__init__(require)
+        self.results = None
+        self.reset()
+        self.first_batch = True
+
+    def after_batch(self, result, batch, is_training):
+
+        if not self.first_batch:
+            return
+        else:
+            self.first_batch = False
+
+        self.results = result
+
+    def reset(self):
+        self.results = collections.defaultdict(list)
+        self.first_batch = True
+
+    def before_epoch(self, is_training):
+        self.reset()
+
+    def get_questions(self):
+        return self.results

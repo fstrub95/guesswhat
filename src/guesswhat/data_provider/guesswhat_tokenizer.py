@@ -2,6 +2,7 @@ from nltk.tokenize import TweetTokenizer
 import json
 import numpy as np
 
+
 class GWTokenizer:
     """ """
     def __init__(self, dictionary_file):
@@ -25,6 +26,8 @@ class GWTokenizer:
         self.yes_token = self.word2i["<yes>"]
         self.no_token = self.word2i["<no>"]
         self.non_applicable_token = self.word2i["<n/a>"]
+
+        assert self.padding_token == 0, "Padding token must be equal to zero"
 
         self.qgen_answers = [self.yes_token, self.no_token, self.non_applicable_token]
 

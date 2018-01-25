@@ -83,7 +83,7 @@ class QGenBSWrapper(object):
             self.beam[i] = new_beam
 
         # Compute output
-        questions =  [b.path[0] for b in self.beam]
+        questions = [b.path[0] for b in self.beam]
         seq_length = [len(q) for q in questions]
 
         padded_questions = np.full((len(self.beam), max(seq_length)), fill_value=self.tokenizer.padding_token)
