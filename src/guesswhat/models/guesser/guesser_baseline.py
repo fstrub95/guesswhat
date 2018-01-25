@@ -23,7 +23,7 @@ class GuesserNetwork(AbstractNetwork):
                                    lambda: tf.constant(1.0))
 
             # In config file, if the size of the projection is not specified for dialogue, don't project it at all
-            # The object will be projected to match the lstm output
+            # The object embedding will be projected to match the lstm output
             if config['dialog_emb_dim'] != 0:
                 project_vizdial_embedding = True
                 dialog_emb_dim = config['dialog_emb_dim']
@@ -50,6 +50,7 @@ class GuesserNetwork(AbstractNetwork):
                 embed_dim=config['cat_emb_dim'],
                 scope="cat_embedding",
                 reuse=reuse)
+
             # Adding spatial coordinate (should be optionnal)
             self.objects_input = tf.concat([self.object_cats_emb, self._obj_spats], axis=2)
             self.flat_objects_inp = tf.reshape(self.objects_input, [-1, config['cat_emb_dim'] + config['spat_dim']])
@@ -110,8 +111,6 @@ class GuesserNetwork(AbstractNetwork):
                         def append_extra_features(features, config):
                             if config["spatial_location"]:  # add the pixel location as two additional feature map
                                 features = ft_utils.append_spatial_location(features)
-                            if config["mask"]:  # add the mask on the object as one additional feature map
-                                features = tf.concat([features, self._mask], axis=3)
                             return features
 
                         self.film_img_stack = FiLM_Stack(image=self.image_out,
@@ -125,8 +124,8 @@ class GuesserNetwork(AbstractNetwork):
 
                         self.visual_dialogue_embedding = self.film_img_stack.get()
 
-                # If attention is not used on images and film not used, concatenate dialogue embedding and image features
-                elif config['image']['attention']['mode'] == "none" :
+                # If film not used and attention , concatenate dialogue embedding and image features
+                elif config["image"]["attention"].get("reinject_dial", True):
                     self.visual_dialogue_embedding = tf.concat([self.visual_dialogue_embedding, self.image_out], axis=-1)
 
 
@@ -202,4 +201,4 @@ if __name__ == "__main__":
 
     },
         "dropout_keep_prob": 0.5
-    }, num_words=78)
+    }, num_words=78)ˇ

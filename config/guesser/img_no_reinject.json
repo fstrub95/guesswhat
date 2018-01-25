@@ -1,7 +1,7 @@
 {
   "model":
   {
-    "name" : "Baseline with image",
+    "name" : "Baseline with image, dialogue used for attention, not reinjected after",
     "word_emb_dim": 300,
     "num_lstm_units": 1024,
     "cat_emb_dim": 256,
@@ -21,7 +21,8 @@
       "attention" : {
         "mode": "mean",
         "no_attention_mlp" : 256,
-        "fuse_mode" : "concat"
+        "fuse_mode" : "concat",
+        "reinject_dial":false
       }
 
     },
