@@ -156,7 +156,10 @@ class FiLM_Oracle(ResnetModel):
                                                          append_extra_features=append_extra_features,
                                                          reuse=reuse)
 
-                        self.classifier_input.append(self.film_img_stack.get())
+                        film_img_output = self.film_img_stack.get()
+                        film_img_output = tf.nn.dropout(film_img_output, dropout_keep)
+
+                        self.classifier_input.append(film_img_output)
 
             #####################
             #   CROP
@@ -218,7 +221,10 @@ class FiLM_Oracle(ResnetModel):
                                                           append_extra_features=append_extra_features,
                                                           reuse=reuse)
 
-                        self.classifier_input.append(self.film_crop_stack.get())
+                        film_crop_output = self.film_img_stack.get()
+                        film_crop_output = tf.nn.dropout(film_crop_output, dropout_keep)
+
+                        self.classifier_input.append(film_crop_output)
 
 
             #####################

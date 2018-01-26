@@ -4,10 +4,63 @@ import tensorflow.contrib.layers as tfc_layers
 import tensorflow.contrib.rnn as tfc_rnn
 import tensorflow.contrib.seq2seq as tfc_seq
 
+from neural_toolbox import rnn, utils
+
 from generic.tf_factory.image_factory import get_image_features
+from generic.tf_factory.fusion_factory import get_fusion_mechanism
+
 from generic.tf_utils.abstract_network import AbstractNetwork
 
-import neural_toolbox.rnn as rnn
+from neural_toolbox.film_stack import FiLM_Stack
+
+from tensorflow.python.framework import tensor_shape
+from tensorflow.python.util import nest
+
+import collections
+
+class BasicDecoderWithStateOutput(
+       collections.namedtuple('BasicDecoderWithStateOutput', ('rnn_output', 'rnn_state', 'sample_id'))):
+   """ Basic Decoder Named Tuple with rnn_output, rnn_state, and sample_id """
+pass
+
+class BasicDecoderWithState(tfc_seq.BasicDecoder):
+
+    def __init__(self, cell, helper, initial_state, output_layer=None):
+        super(BasicDecoderWithState, self).__init__(cell=cell,
+                                                 helper=helper,
+                                                 initial_state=initial_state,
+                                                 output_layer=output_layer)
+
+    @property
+    def output_size(self):
+        return BasicDecoderWithStateOutput(rnn_output=self._rnn_output_size(),
+                                           rnn_state=tensor_shape.TensorShape([self._cell.output_size]),
+                                           sample_id=self._helper.sample_ids_shape)
+
+
+    @property
+    def output_dtype(self):
+        # Assume the dtype of the cell is the output_size structure
+        # containing the input_state's first component's dtype.
+        # Return that structure and the sample_ids_dtype from the helper.
+        dtype = nest.flatten(self._initial_state)[0].dtype
+        return BasicDecoderWithStateOutput(nest.map_structure(lambda _: dtype, self._rnn_output_size()),
+                                           dtype,
+                                           self._helper.sample_ids_dtype)
+
+
+
+    def step(self, time, inputs, state, name=None):
+
+        (outputs, next_state, next_inputs, finished) = super(BasicDecoderWithState, self).step(time, inputs, state, name=None)
+
+        # store state
+        outputs = BasicDecoderWithStateOutput(
+            rnn_output=outputs.rnn_output,
+            rnn_state=state,
+            sample_id=outputs.sample_id)
+
+        return outputs, next_state, next_inputs, finished
 
 
 class QGenNetworkDecoder(AbstractNetwork):
@@ -28,20 +81,6 @@ class QGenNetworkDecoder(AbstractNetwork):
                                    lambda: tf.constant(dropout_keep_scalar),
                                    lambda: tf.constant(1.0))
 
-            #####################
-            #   IMAGES
-            #####################
-
-            self._image = tf.placeholder(tf.float32, [batch_size] + config['image']["dim"], name='image')
-            self.image_out = get_image_features(
-                image=self._image,
-                question=None,  # no attention at this point
-                is_training=self._is_training,
-                scope_name="image_processing",
-                config=config['image'])
-
-            # TODO remove after FiLM
-            self.image_out = tf.nn.dropout(self.image_out, dropout_keep)
 
             #####################
             #   DIALOGUE
@@ -61,14 +100,70 @@ class QGenNetworkDecoder(AbstractNetwork):
                 word_emb_dialogue = tf.concat([word_emb_dialogue, self._glove], axis=2)
 
             word_emb_dialogue = tf.nn.dropout(word_emb_dialogue, dropout_keep)
-            self.rnn_states, self.last_rnn_state = rnn.gru_factory(
+            self.rnn_states, self.rnn_last_states = rnn.gru_factory(
                 inputs=word_emb_dialogue,
                 seq_length=self._seq_length_dialogue,
                 num_hidden=config["dialogue"]["rnn_state_size"],
                 bidirectional=config["dialogue"]["bidirectional"],
                 max_pool=config["dialogue"]["max_pool"],
                 reuse=reuse)
-            self.last_rnn_state = tf.nn.dropout(self.last_rnn_state, dropout_keep)
+            self.dialogue_embedding = tf.nn.dropout(self.rnn_last_states, dropout_keep)
+
+
+            #####################
+            #   IMAGES
+            #####################
+
+            self._image = tf.placeholder(tf.float32, [batch_size] + config['image']["dim"], name='image')
+            self.image_out = get_image_features(
+                image=self._image,
+                question=None,  # no attention at this point
+                is_training=self._is_training,
+                scope_name="image_processing",
+                config=config['image'])
+
+
+            #####################
+            #   FiLM
+            #####################
+
+            # Use attention or use vgg features
+            if len(self.image_out.get_shape()) == 2:
+                self.image_embedding = self.image_out
+
+            else:
+                with tf.variable_scope("image_film_stack", reuse=reuse):
+
+                    self.film_img_stack = FiLM_Stack(image=self.image_out,
+                                                     film_input=self.dialogue_embedding,
+                                                     attention_input=self.dialogue_embedding,
+                                                     is_training=self._is_training,
+                                                     dropout_keep=dropout_keep,
+                                                     config=config["image"]["film_block"],
+                                                     reuse=reuse)
+
+                    self.image_embedding =self.film_img_stack.get()
+                    self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
+
+
+            #####################
+            #   FUSION MECHANISM
+            #####################
+
+            if config["fusion"]["apply_fusion"]:
+
+                with tf.variable_scope('fusion'):
+
+                    self.final_embedding = get_fusion_mechanism(input1=self.image_embedding,
+                                                                input2=self.dialogue_embedding,
+                                                                config=config["fusion"],
+                                                                dropout_keep=dropout_keep,
+                                                                reuse=reuse)
+
+                    self.final_embedding = tf.nn.dropout(self.final_embedding, dropout_keep)
+            else:
+                self.final_embedding = self.image_embedding
+
 
             #####################
             #   TARGET QUESTION
@@ -76,7 +171,12 @@ class QGenNetworkDecoder(AbstractNetwork):
 
             self._question = tf.placeholder(tf.int32, [batch_size, None], name='question')
             self._seq_length_question = tf.placeholder(tf.int32, [batch_size], name='seq_length_question')
-            self._question_mask = tf.placeholder(tf.float32, [batch_size, None], name='question_mask')
+
+
+            input_question = self._question[:, :-1]  # Ignore start token
+            target_question = self._question[:, 1:]  # Ignore stop token
+
+            self._question_mask = tf.sequence_mask(lengths=self._seq_length_question - 1, dtype=tf.float32) # -1 : remove start token a decoding time
 
             if config["dialogue"]["share_decoder_emb"]:
                 self.question_emb_weights = self.dialogue_emb_weights
@@ -84,88 +184,93 @@ class QGenNetworkDecoder(AbstractNetwork):
                 self.question_emb_weights = tf.get_variable("question_embedding_encoder",
                                                             shape=[num_words, config["dialogue"]["word_embedding_dim"]])
 
-            self.word_emb_question = tf.nn.embedding_lookup(params=self.question_emb_weights, ids=self._question)
+            self.word_emb_question = tf.nn.embedding_lookup(params=self.question_emb_weights, ids=input_question)
             self.word_emb_question = tf.nn.dropout(self.word_emb_question, dropout_keep)
 
-            #####################
-            #   VIS
-            #####################
-
-            with tf.variable_scope('Vis'):
-
-                self.dialogue_projection = tfc_layers.fully_connected(self.last_rnn_state,
-                                                                      num_outputs=config["top"]["vis"]["projection_size"],
-                                                                      activation_fn=tf.nn.tanh,
-                                                                      reuse=reuse,
-                                                                      scope="dialogue_projection")
-
-                self.image_projection = tfc_layers.fully_connected(self.image_out,
-                                                                   num_outputs=config["top"]["vis"]["projection_size"],
-                                                                   activation_fn=tf.nn.tanh,
-                                                                   reuse=reuse,
-                                                                   scope="image_projection")
-
-                full_projection = self.image_projection * self.dialogue_projection
-                full_projection = tf.nn.dropout(full_projection, dropout_keep)
-
-                self.final_embedding = tfc_layers.fully_connected(full_projection,
-                                                                  num_outputs=config["top"]["vis"]["embedding_size"],
-                                                                  activation_fn=tf.nn.relu,
-                                                                  reuse=reuse,
-                                                                  scope="final_projection")
-                self.final_embedding = tf.nn.dropout(self.final_embedding, dropout_keep)
 
             #####################
             #   DECODER
             #####################
 
-            self.decoder_cell = tfc_rnn.GRUCell(num_units=config["top"]["decoder"]["num_units"],
+            self.decoder_cell = tfc_rnn.GRUCell(num_units=config["decoder"]["num_units"],
                                                 activation=tf.nn.tanh,
                                                 reuse=reuse)
 
-            self.decoder_projection_layer = tf.layers.Dense(num_words, use_bias=False)
+
+            self.decoder_projection_layer = utils.MultiLayers(
+                [   tf.layers.Dropout(dropout_keep),
+                    tf.layers.Dense(num_words, use_bias=False),
+                ])
+
 
             training_helper = tfc_seq.TrainingHelper(inputs=self.word_emb_question,  # The question is the target
-                                                     sequence_length=self._seq_length_question)
+                                                     sequence_length=self._seq_length_question-1) # -1 : remove start token a decoding time
 
-            (decoder_outputs, _), _ , _ = self._create_decoder_graph(training_helper, max_tokens=None)
+            decoder = BasicDecoderWithState(
+                self.decoder_cell, training_helper, self.final_embedding,
+                output_layer=self.decoder_projection_layer)
+
+            (self.decoder_outputs, self.decoder_states, _), _ , _ = tfc_seq.dynamic_decode(decoder, maximum_iterations=None)
 
             #####################
             #   LOSS
             #####################
 
             # compute the softmax for evaluation
-            with tf.variable_scope('decoder_output'):
-                self.cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=decoder_outputs, labels=self._question)
-                self.cross_entropy = self.cross_entropy * self._question_mask
+            with tf.variable_scope('ml_loss'):
 
-                count = tf.reduce_sum(self._question_mask)
+                self.ml_loss = tfc_seq.sequence_loss(logits=self.decoder_outputs,
+                                                  targets=target_question,
+                                                  weights=self._question_mask,
+                                                  average_across_timesteps=True,
+                                                  average_across_batch=True)
 
-                self.cross_entropy_loss = tf.reduce_sum(self.cross_entropy)
-                self.cross_entropy_loss = self.cross_entropy_loss / count
+                self.softmax_output = tf.nn.softmax(self.decoder_outputs, name="softmax")
+                self.argmax_output = tf.argmax(self.decoder_outputs, axis=2)
 
-                self.softmax_output = tf.nn.softmax(decoder_outputs, name="softmax")
-                self.argmax_output = tf.argmax(decoder_outputs, axis=2)
+                self.loss = self.ml_loss
 
-                self.ml_loss = self.cross_entropy_loss
+            # Compute policy gradient
+            if policy_gradient:
+                with tf.variable_scope('rl_baseline'):
+                    baseline_input = tf.stop_gradient(self.final_embedding)
+                    baseline = 0
+
+                with tf.variable_scope('policy_gradient_loss'):
+
+                    self.log_of_policy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.decoder_outputs, labels=target_question)
+                    self.log_of_policy = self.log_of_policy * self._question_mask
+
+                    self.policy_gradient_loss = None
+
+                self.loss = self.policy_gradient_loss
 
 
-                if not policy_gradient:
-                    self.loss = self.cross_entropy_loss
 
-            # TEMPO : DO NOT USE THOSE LOSS -> TODO imolement RL loss
-            self.loss = self.cross_entropy_loss
-            self.policy_gradient_loss = self.cross_entropy_loss
-            self.baseline_loss = self.cross_entropy_loss
+                with tf.variable_scope('policy_gradient_loss'):
+
+                    # Compute log_prob
+                    self.log_of_policy = tf.identity(self.cross_entropy_loss)
+                    self.log_of_policy *= self.answer_mask[:, 1:]  # remove answers (<=> predicted answer has maximum reward) (ignore the START token in the mask)
+                    # No need to use padding mask as the discounted_reward is already zero once the episode terminated
+
+                    # Policy gradient loss
+                    rewards *= self.answer_mask[:, 1:]
+                    self.score_function = tf.multiply(self.log_of_policy, rewards - self.baseline)  # score function
+
+                    self.baseline_loss = tf.reduce_sum(tf.square(rewards - self.baseline))
+
+                    self.policy_gradient_loss = tf.reduce_sum(self.score_function, axis=1)  # sum over the dialogue trajectory
+                    self.policy_gradient_loss = tf.reduce_mean(self.policy_gradient_loss, axis=0)  # reduce over minibatch dimension
+
+                    self.loss = self.policy_gradient_loss
 
 
-    def _create_decoder_graph(self, helper, max_tokens):
 
-        decoder = tf.contrib.seq2seq.BasicDecoder(
-            self.decoder_cell, helper, self.final_embedding,
-            output_layer=self.decoder_projection_layer)
 
-        return tfc_seq.dynamic_decode(decoder, maximum_iterations=max_tokens)
+
+
+
 
     def create_sampling_graph(self, start_token, stop_token, max_tokens):
 
@@ -174,7 +279,11 @@ class QGenNetworkDecoder(AbstractNetwork):
                                                       start_tokens=tf.fill([batch_size], start_token),
                                                       end_token=stop_token)
 
-        (_, sample_id), _, seq_length = self._create_decoder_graph(sample_helper, max_tokens=max_tokens)
+        decoder = BasicDecoderWithState(
+            self.decoder_cell, sample_helper, self.final_embedding,
+            output_layer=self.decoder_projection_layer)
+
+        (_, sample_id), _, seq_length = tfc_seq.dynamic_decode(decoder, maximum_iterations=max_tokens)
 
         return sample_id, seq_length
 
@@ -185,7 +294,11 @@ class QGenNetworkDecoder(AbstractNetwork):
                                                       start_tokens=tf.fill([batch_size], start_token),
                                                       end_token=stop_token)
 
-        (_, sample_id), _, seq_length = self._create_decoder_graph(greedy_helper, max_tokens=max_tokens)
+        decoder = BasicDecoderWithState(
+            self.decoder_cell, greedy_helper, self.final_embedding,
+            output_layer=self.decoder_projection_layer)
+
+        (_, sample_id), _, seq_length = tfc_seq.dynamic_decode(decoder, maximum_iterations=max_tokens)
 
         return sample_id, seq_length
 
