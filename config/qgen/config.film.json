@@ -1,7 +1,13 @@
 {
   "name" : "VIS seq2seq model",
 
+<<<<<<< HEAD
   "model": {
+=======
+    "word_embedding_size": 512,
+    "num_rnn_units": 1024,
+    "image_embedding_size": 512,
+>>>>>>> 7e597fdf629d5f08fbbf7ed3159b3438108e9b06
 
     "image":
     {

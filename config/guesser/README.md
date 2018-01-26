@@ -14,7 +14,7 @@ The keyword "model" refers to the model architecture of the guesser:
 "model": {
 
     "word_emb_dim": 512,   # dimension of the word embedding for the dialogue
-    "num_lstm_units": 512, # dimension of the LSTM for the dialogue
+    "num_rnn_units": 512, # dimension of the LSTM for the dialogue
 
     "cat_emb_dim": 256,    # dimension of the object category embedding
     "no_categories": 90    # number of object category (90 for MS coco)
