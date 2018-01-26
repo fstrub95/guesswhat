@@ -13,6 +13,7 @@ from generic.tf_utils.abstract_network import AbstractNetwork
 
 from neural_toolbox.film_stack import FiLM_Stack
 
+
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.util import nest
 
@@ -48,8 +49,6 @@ class BasicDecoderWithState(tfc_seq.BasicDecoder):
                                            dtype,
                                            self._helper.sample_ids_dtype)
 
-
-
     def step(self, time, inputs, state, name=None):
 
         (outputs, next_state, next_inputs, finished) = super(BasicDecoderWithState, self).step(time, inputs, state, name=None)
@@ -61,6 +60,8 @@ class BasicDecoderWithState(tfc_seq.BasicDecoder):
             sample_id=outputs.sample_id)
 
         return outputs, next_state, next_inputs, finished
+
+
 
 
 class QGenNetworkDecoder(AbstractNetwork):
@@ -232,43 +233,43 @@ class QGenNetworkDecoder(AbstractNetwork):
 
             # Compute policy gradient
             if policy_gradient:
+
+                self.cum_rewards = tf.placeholder(tf.float32, shape=[batch_size, None], name='cum_reward')
+
                 with tf.variable_scope('rl_baseline'):
-                    baseline_input = tf.stop_gradient(self.final_embedding)
-                    baseline = 0
+                    baseline_input = tf.stop_gradient(self.decoder_states)
+
+                    baseline_hidden = tfc_layers.fully_connected(baseline_input,
+                                                              num_outputs=int(int(baseline_input.get_shape()[-1])/4),
+                                                              activation_fn=tf.nn.relu,
+                                                              scope='baseline_hidden',
+                                                              reuse=reuse)
+
+                    baseline_hidden = tf.layers.dropout(baseline_hidden, dropout_keep)
+
+                    baseline_out = tfc_layers.fully_connected(baseline_hidden,
+                                                              num_outputs=1,
+                                                              activation_fn=tf.nn.relu,
+                                                              scope='baseline',
+                                                              reuse=reuse)
+                    baseline_out = tf.squeeze(baseline_out, axis=-1)
+
+                    self.baseline = baseline_out * self._question_mask
+
+                    self.baseline_loss = tf.reduce_sum(tf.square(self.cum_rewards - self.baseline))
+
 
                 with tf.variable_scope('policy_gradient_loss'):
 
                     self.log_of_policy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.decoder_outputs, labels=target_question)
                     self.log_of_policy = self.log_of_policy * self._question_mask
 
-                    self.policy_gradient_loss = None
-
-                self.loss = self.policy_gradient_loss
-
-
-
-                with tf.variable_scope('policy_gradient_loss'):
-
-                    # Compute log_prob
-                    self.log_of_policy = tf.identity(self.cross_entropy_loss)
-                    self.log_of_policy *= self.answer_mask[:, 1:]  # remove answers (<=> predicted answer has maximum reward) (ignore the START token in the mask)
-                    # No need to use padding mask as the discounted_reward is already zero once the episode terminated
-
-                    # Policy gradient loss
-                    rewards *= self.answer_mask[:, 1:]
-                    self.score_function = tf.multiply(self.log_of_policy, rewards - self.baseline)  # score function
-
-                    self.baseline_loss = tf.reduce_sum(tf.square(rewards - self.baseline))
+                    self.score_function = tf.multiply(self.log_of_policy, self.cum_rewards - self.baseline)
 
                     self.policy_gradient_loss = tf.reduce_sum(self.score_function, axis=1)  # sum over the dialogue trajectory
-                    self.policy_gradient_loss = tf.reduce_mean(self.policy_gradient_loss, axis=0)  # reduce over minibatch dimension
+                    self.policy_gradient_loss = tf.reduce_mean(self.policy_gradient_loss, axis=0)
 
                     self.loss = self.policy_gradient_loss
-
-
-
-
-
 
 
 
@@ -279,7 +280,7 @@ class QGenNetworkDecoder(AbstractNetwork):
                                                       start_tokens=tf.fill([batch_size], start_token),
                                                       end_token=stop_token)
 
-        decoder = BasicDecoderWithState(
+        decoder = tfc_seq.BasicDecoder(
             self.decoder_cell, sample_helper, self.final_embedding,
             output_layer=self.decoder_projection_layer)
 
@@ -294,7 +295,7 @@ class QGenNetworkDecoder(AbstractNetwork):
                                                       start_tokens=tf.fill([batch_size], start_token),
                                                       end_token=stop_token)
 
-        decoder = BasicDecoderWithState(
+        decoder = tfc_seq.BasicDecoder(
             self.decoder_cell, greedy_helper, self.final_embedding,
             output_layer=self.decoder_projection_layer)
 
@@ -337,7 +338,7 @@ if __name__ == "__main__":
     with open("../../../../config/qgen/config.film.json", 'rb') as f_config:
         config = json.load(f_config)
 
-    network = QGenNetworkDecoder(config["model"], num_words=354, policy_gradient=False)
+    network = QGenNetworkDecoder(config["model"], num_words=354, policy_gradient=True)
 
     network.create_sampling_graph(start_token=1, stop_token=2, max_tokens=10)
     network.create_greedy_graph(start_token=1, stop_token=2, max_tokens=10)
