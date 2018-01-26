@@ -3,10 +3,6 @@
 
   "model": {
 
-    "word_embedding_size": 512,
-    "num_lstm_units": 1024,
-    "image_embedding_size": 512,
-
     "image":
     {
       "image_input": "conv",
@@ -14,7 +10,7 @@
       "normalize": false,
 
       "attention" : {
-        "mode": "max"
+        "mode": "mean"
       }
 
     },
@@ -22,26 +18,22 @@
     "dialogue":
     {
       "word_embedding_dim" : 300,
-      "share_decoder_emb": true,
+      "share_decoder_emb": false,
       "glove" : false,
-      "rnn_state_size": 1024,
+      "rnn_state_size": 1500,
       "bidirectional" : true,
       "max_pool" : false
     },
 
-    "top":
-    {
-      "vis": {
+    "fusion": {
+        "apply_fusion" : true,
+        "mode" : "vis",
         "projection_size": 1024,
-        "embedding_size": 512
-      },
+        "output_size": 512
+    },
 
-      "decoder":
-      {
-        "num_units": 512,
-        "maximum_iterations": 20
-      }
-
+    "decoder": {
+      "num_units": 512
     }
 
   },
