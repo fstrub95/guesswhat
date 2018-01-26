@@ -1,6 +1,6 @@
 {
   "model": {
-    "name" : "Film_base_with_gru",
+    "name" : "Film with norm img",
     "word_emb_dim": 300,
     "cat_emb_dim": 256,
     "obj_emb_hidden": 512,
@@ -22,7 +22,7 @@
         14,
         1024
       ],
-      "normalize": false,
+      "normalize": true,
       "attention": {
         "mode": "none"
       },

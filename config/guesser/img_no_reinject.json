@@ -1,16 +1,20 @@
 {
-  "model":
-  {
+  "model": {
     "name" : "Baseline with image, dialogue used for attention, not reinjected after",
     "word_emb_dim": 300,
-    "num_lstm_units": 1024,
     "cat_emb_dim": 256,
     "obj_emb_hidden": 512,
-
-    "dialog_emb_dim": 1024,
+    "dialog_emb_dim": 0,
 
     "spat_dim": 8,
     "no_categories": 90,
+
+    "rnn_config":{
+      "num_rnn_units": 1024,
+      "use_lstm" : true,
+      "bidirectional" : true,
+      "max_pool" : false
+    },
 
     "image":
     {

@@ -1,6 +1,6 @@
 {
   "model": {
-    "name" : "Film_base_with_gru",
+    "name" : "Film_lstm",
     "word_emb_dim": 300,
     "cat_emb_dim": 256,
     "obj_emb_hidden": 512,
@@ -10,7 +10,7 @@
 
     "rnn_config":{
       "num_rnn_units": 1024,
-      "use_lstm" : false,
+      "use_lstm" : true,
       "bidirectional" : true,
       "max_pool" : false
     },

@@ -31,11 +31,11 @@ class QGenNetworkLSTM(AbstractNetwork):
             self.cum_rewards = tf.placeholder(tf.float32, shape=[mini_batch_size, None], name='cum_reward')
 
             # DECODER Hidden state (for beam search)
-            zero_state = tf.zeros([1, config['num_lstm_units']])  # default LSTM state is a zero-vector
+            zero_state = tf.zeros([1, config['num_rnn_units']])  # default LSTM state is a zero-vector
             zero_state = tf.tile(zero_state, [tf.shape(self.images)[0], 1])  # trick to do a dynamic size 0 tensors
 
-            self.decoder_zero_state_c = tf.placeholder_with_default(zero_state, [mini_batch_size, config['num_lstm_units']], name="state_c")
-            self.decoder_zero_state_h = tf.placeholder_with_default(zero_state, [mini_batch_size, config['num_lstm_units']], name="state_h")
+            self.decoder_zero_state_c = tf.placeholder_with_default(zero_state, [mini_batch_size, config['num_rnn_units']], name="state_c")
+            self.decoder_zero_state_h = tf.placeholder_with_default(zero_state, [mini_batch_size, config['num_rnn_units']], name="state_h")
             decoder_initial_state = tf.contrib.rnn.LSTMStateTuple(c=self.decoder_zero_state_c, h=self.decoder_zero_state_h)
 
             # Misc
@@ -88,7 +88,7 @@ class QGenNetworkLSTM(AbstractNetwork):
 
             # encode one word+image
             decoder_lstm_cell = tf.contrib.rnn.LayerNormBasicLSTMCell(
-                    config['num_lstm_units'],
+                    config['num_rnn_units'],
                     layer_norm=False,
                     dropout_keep_prob=1.0,
                     reuse=reuse)
@@ -216,7 +216,7 @@ class QGenNetworkLSTM(AbstractNetwork):
                 inp_emb = tf.concat([word_emb, self.image_emb], axis=1)
                 with tf.variable_scope("word_decoder"):
                     lstm_cell = tf.contrib.rnn.LayerNormBasicLSTMCell(
-                        config['num_lstm_units'],
+                        config['num_rnn_units'],
                         layer_norm=False,
                         dropout_keep_prob=1.0,
                         reuse=True)

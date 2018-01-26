@@ -2,7 +2,7 @@
   "model": {
 
     "word_embedding_size": 512,
-    "num_lstm_units": 1024,
+    "num_rnn_units": 1024,
     "image_embedding_size": 512,
 
     "image":

@@ -1,9 +1,9 @@
 {
   "model": {
-    "name" : "Film_base_with_gru",
-    "word_emb_dim": 300,
+    "name" : "Film_bigger_emb",
+    "word_emb_dim": 512,
     "cat_emb_dim": 256,
-    "obj_emb_hidden": 512,
+    "obj_emb_hidden": 700,
     "dialog_emb_dim": 0,
     "spat_dim": 8,
     "no_categories": 90,

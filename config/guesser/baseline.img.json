@@ -3,7 +3,6 @@
   {
     "name" : "Baseline with image",
     "word_emb_dim": 300,
-    "num_lstm_units": 1024,
     "cat_emb_dim": 256,
     "obj_emb_hidden": 512,
 
@@ -11,6 +10,13 @@
 
     "spat_dim": 8,
     "no_categories": 90,
+
+    "rnn_config":{
+      "num_rnn_units": 1024,
+      "use_lstm" : true,
+      "bidirectional" : true,
+      "max_pool" : false
+    },
 
     "image":
     {

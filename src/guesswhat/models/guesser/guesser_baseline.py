@@ -22,14 +22,23 @@ class GuesserNetwork(AbstractNetwork):
                                    lambda: tf.constant(dropout_keep_scalar),
                                    lambda: tf.constant(1.0))
 
+            use_image = config.get("image",False)
+            if use_image:
+                use_film = "film_input" in config['image']
+            else:
+                use_film = False
+
             # In config file, if the size of the projection is not specified for dialogue, don't project it at all
             # The object embedding will be projected to match the lstm output
             if config['dialog_emb_dim'] != 0:
                 project_vizdial_embedding = True
                 dialog_emb_dim = config['dialog_emb_dim']
+            elif use_film :
+                project_vizdial_embedding = False
+                dialog_emb_dim = 1024 #Dim out of film, Ugly
             else:
                 project_vizdial_embedding = False
-                dialog_emb_dim = config['num_lstm_units']
+                dialog_emb_dim = config["rnn_config"]['num_rnn_units']
 
             # Dialogues
             self._dialogues = tf.placeholder(tf.int32, [batch_size, None], name='dialogues')
@@ -77,15 +86,26 @@ class GuesserNetwork(AbstractNetwork):
                 scope="input_word_embedding",
                 reuse=reuse)
 
-            self.visual_dialogue_embedding, _ = rnn.variable_length_LSTM(word_emb,
-                                                      num_hidden=config['num_lstm_units'],
-                                                      seq_length=self._seq_length,
-                                                      dropout_keep_prob=dropout_keep)
+            # If specified, use a lstm, otherwise default behavior is GRU now
+            if config["rnn_config"].get("use_lstm", False):
+                _, self.visual_dialogue_embedding = rnn.variable_length_LSTM(word_emb,
+                                                          num_hidden=config["rnn_config"]['num_rnn_units'],
+                                                          seq_length=self._seq_length,
+                                                          dropout_keep_prob=dropout_keep)
+
+            else:
+                _, self.visual_dialogue_embedding = rnn.gru_factory(
+                    inputs=word_emb,
+                    seq_length=self._seq_length,
+                    num_hidden=config["rnn_config"]["num_rnn_units"],
+                    bidirectional=config["rnn_config"]["bidirectional"],
+                    max_pool=config["rnn_config"]["max_pool"],
+                    reuse=reuse)
 
             #####################
             #   IMAGES
             #####################
-            if 'image' in config:
+            if use_image:
 
                 self._image = tf.placeholder(tf.float32, [batch_size] + config['image']["dim"], name='image')
                 self.image_out = get_image_features(
@@ -95,8 +115,7 @@ class GuesserNetwork(AbstractNetwork):
                     config=config['image'],
                     dropout_keep=dropout_keep)
 
-                if "film_input" in config['image']:
-
+                if use_film:
                     self.film_img_input = []
                     with tf.variable_scope("image_film_input", reuse=reuse):
                         if config["image"]["film_input"]["question"]:
@@ -177,7 +196,7 @@ if __name__ == "__main__":
 
     GuesserNetwork({
     "word_emb_dim": 300,
-    "num_lstm_units": 1024,
+    "num_rnn_units": 1024,
     "cat_emb_dim": 256,
     "obj_emb_hidden": 512,
 
@@ -201,4 +220,4 @@ if __name__ == "__main__":
 
     },
         "dropout_keep_prob": 0.5
-    }, num_words=78)ˇ
+    }, num_words=78)

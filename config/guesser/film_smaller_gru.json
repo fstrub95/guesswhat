@@ -1,6 +1,6 @@
 {
   "model": {
-    "name" : "Film_base_with_gru",
+    "name" : "Film with smaller gru",
     "word_emb_dim": 300,
     "cat_emb_dim": 256,
     "obj_emb_hidden": 512,
@@ -9,7 +9,7 @@
     "no_categories": 90,
 
     "rnn_config":{
-      "num_rnn_units": 1024,
+      "num_rnn_units": 512,
       "use_lstm" : false,
       "bidirectional" : true,
       "max_pool" : false

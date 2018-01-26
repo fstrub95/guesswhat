@@ -153,7 +153,7 @@ class Dataset(AbstractDataset):
                 games.append(g)
 
                 # If no_games_to_load is defined : Loading a certain number of games
-                if len(games) > games_to_load:
+                if len(games) >= games_to_load:
                     break
 
         print("{} games were loaded...".format(len(games) ))

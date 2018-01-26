@@ -1,18 +1,20 @@
 {
-  "model":
-  {
-    "word_emb_dim": 300,
-    "num_lstm_units": 1024,
+  "model": {
+    "name": "Baseline : Lstm 1024 drop_keep 0.5, don't use image",
+    "word_emb_dim": 512,
     "cat_emb_dim": 256,
+    "dialog_emb_dim": 0,
     "obj_emb_hidden": 512,
-
-    "dialog_emb_dim": 1024,
-
     "spat_dim": 8,
     "no_categories": 90,
-
-    "dropout_keep_prob": 0.5
-    },
+    "keep_dropout": 0.5,
+    "rnn_config": {
+      "num_rnn_units": 1024,
+      "use_lstm": true,
+      "bidirectional": true,
+      "max_pool": false
+    }
+  },
 
   "optimizer": {
     "no_epoch": 20,
