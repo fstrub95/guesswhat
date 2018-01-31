@@ -164,6 +164,7 @@ if __name__ == '__main__':
                                  batch_size=batch_size,
                                  batchifier=batchifier,
                                  shuffle=True)
+
         [test_loss, test_accuracy] = evaluator.process(sess, test_iterator, outputs)
 
         logger.info("Testing loss: {}".format(test_loss))
