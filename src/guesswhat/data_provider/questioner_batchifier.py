@@ -174,10 +174,13 @@ class LSTMBatchifier(AbstractBatchifier):
         batch['obj_spats'], obj_length = padder_3d(batch['obj_spats'])
         batch['obj_cats'], obj_length = padder(batch['obj_cats'])
 
+
+        batch['num_obj'] = obj_length
+
         # Compute the object mask
-        max_objects = max(obj_length)
-        batch['obj_mask'] = np.zeros((batch_size, max_objects), dtype=np.float32)
-        for i in range(batch_size):
-            batch['obj_mask'][i, :obj_length[i]] = 1.0
+        # max_objects = max(obj_length)
+        # batch['obj_mask'] = np.zeros((batch_size, max_objects), dtype=np.float32)
+        # for i in range(batch_size):
+        #     batch['obj_mask'][i, :obj_length[i]] = 1.0
 
         return batch

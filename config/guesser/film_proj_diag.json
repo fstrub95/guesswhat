@@ -1,6 +1,6 @@
 {
+  "name" : "Film with dialog/obj projection size 512 and gru",
   "model": {
-    "name" : "Film with dialog/obj projection size 512 and gru",
     "word_emb_dim": 300,
     "cat_emb_dim": 256,
     "obj_emb_hidden": 512,
@@ -78,7 +78,9 @@
     "no_epoch": 20,
     "learning_rate": 1e-4,
     "batch_size": 64,
-    "clip_val": 5
+    "clip_val": 5,
+    "weight_decay": 5e-6,
+    "weight_decay_remove": ["obj_mlp_out","obj_mlp_hidden_layer", "input_word_embedding","gru", "head", "visual_dialogue_projection"]
   },
 
   "seed": -1
