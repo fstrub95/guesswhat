@@ -1,6 +1,6 @@
 {
+  "name" : "Film glimpse 2",
   "model": {
-    "name" : "Film glimpse 2",
     "word_emb_dim": 300,
     "cat_emb_dim": 256,
     "obj_emb_hidden": 512,

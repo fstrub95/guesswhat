@@ -1,6 +1,6 @@
 {
+  "name": "Baseline : Lstm 1024 drop_keep 0.5, don't use image",
   "model": {
-    "name": "Baseline : Lstm 1024 drop_keep 0.5, don't use image",
     "word_emb_dim": 512,
     "cat_emb_dim": 256,
     "dialog_emb_dim": 0,

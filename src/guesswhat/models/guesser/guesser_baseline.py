@@ -2,7 +2,7 @@ import tensorflow as tf
 import tensorflow.contrib.layers as tfc_layers
 
 from generic.tf_utils.abstract_network import AbstractNetwork
-from neural_toolbox import rnn, utils
+from neural_toolbox import rnn
 import neural_toolbox.ft_utils as ft_utils
 
 from generic.tf_factory.image_factory import get_image_features
@@ -71,27 +71,14 @@ class GuesserNetwork(AbstractNetwork):
                 h1 = tfc_layers.fully_connected(self.flat_objects_inp,
                                                 num_outputs=config['obj_emb_hidden'],
                                                 activation_fn=tf.nn.relu,
-                                                scope='l1')
+                                                scope='obj_mlp_hidden_layer')
 
-                # h1 = utils.fully_connected(         #replace with tfc
-                #     self.flat_objects_inp,
-                #     n_out=config['obj_emb_hidden'],
-                #     activation='relu',
-                #     scope='l1')
-
-                # h1 = tf.nn.dropout(h1, dropout_keep_scalar)
-
+                h1 = tf.nn.dropout(h1, dropout_keep_scalar)
                 h2 = tfc_layers.fully_connected(h1,
                                                 num_outputs=dialog_emb_dim,
                                                 activation_fn=tf.nn.relu,
-                                                scope='l2')
-                # h2 = utils.fully_connected(
-                #     h1,
-                #     n_out=dialog_emb_dim,
-                #     activation='relu',
-                #     scope='l2')
-
-                # h2 = tf.nn.dropout(h2, dropout_keep_scalar)
+                                                scope='obj_mlp_out')
+                h2 = tf.nn.dropout(h2, dropout_keep_scalar)
 
             obj_embs = tf.reshape(h2, [-1, tf.shape(self._obj_cats)[1], dialog_emb_dim])
 
@@ -102,6 +89,8 @@ class GuesserNetwork(AbstractNetwork):
                 embed_dim=config["word_emb_dim"],
                 scope="input_word_embedding",
                 reuse=reuse)
+
+            word_emb = tf.nn.dropout(word_emb, dropout_keep_scalar)
 
             # If specified, use a lstm, otherwise default behavior is GRU now
             if config["rnn_config"].get("use_lstm", False):
@@ -159,7 +148,9 @@ class GuesserNetwork(AbstractNetwork):
                                                          reuse=reuse)
 
                         self.visual_dialogue_embedding = self.film_img_stack.get()
-                        # TODO dropout
+
+                        self.visual_dialogue_embedding = tf.nn.dropout(self.visual_dialogue_embedding,
+                                                                        dropout_keep_scalar)
 
 
                 # If film not used and attention , concatenate dialogue embedding and image features
@@ -168,12 +159,13 @@ class GuesserNetwork(AbstractNetwork):
 
 
             if project_vizdial_embedding:
-                self.visual_dialogue_projection = utils.fully_connected(
-                    self.visual_dialogue_embedding,
-                    n_out=dialog_emb_dim,
-                    activation='relu',
-                    scope='visual_dialogue_projection')
-                    #TODO dropout
+                self.visual_dialogue_projection = tfc_layers.fully_connected(self.visual_dialogue_embedding,
+                                                num_outputs=dialog_emb_dim,
+                                                activation_fn=tf.nn.relu,
+                                                scope="visual_dialogue_projection")
+
+                self.visual_dialogue_projection = tf.nn.dropout(self.visual_dialogue_projection, dropout_keep_scalar)
+
 
             else:
                 self.visual_dialogue_projection = self.visual_dialogue_embedding
@@ -192,17 +184,6 @@ class GuesserNetwork(AbstractNetwork):
 
             self.loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._targets, logits=self.score_masked)
             self.loss = tf.reduce_mean(self.loss)
-
-            # def masked_softmax(scores, mask):
-            #     # subtract max for stability
-            #     scores = scores - tf.tile(tf.reduce_max(scores, axis=(1,), keep_dims=True), [1, tf.shape(scores)[1]])
-            #     # compute padded softmax
-            #     exp_scores = tf.exp(scores)
-            #     exp_scores *= mask
-            #     exp_sum_scores = tf.reduce_sum(exp_scores, axis=1, keep_dims=True)
-            #     return exp_scores / tf.tile(exp_sum_scores, [1, tf.shape(exp_scores)[1]])
-            #
-            # self.softmax = masked_softmax(scores, self._obj_mask)
 
             self.selected_object = tf.argmax(self.score_masked, axis=1)
 

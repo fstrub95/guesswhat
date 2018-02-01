@@ -1,7 +1,7 @@
 {
+  "name" : "Baseline with image",
   "model":
   {
-    "name" : "Baseline with image",
     "word_emb_dim": 300,
     "cat_emb_dim": 256,
     "obj_emb_hidden": 512,
