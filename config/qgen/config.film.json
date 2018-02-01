@@ -1,5 +1,5 @@
 {
-  "name" : "VIS seq2seq model",
+  "name" : "FiLM seq2seq + VIS_left",
 
   "model": {
 
@@ -11,7 +11,34 @@
       "normalize": false,
 
       "attention" : {
-        "mode": "mean"
+        "mode": "none"
+      },
+
+      "film_block": {
+        "stem": {
+          "spatial_location": true,
+          "conv_out": 256,
+          "conv_kernel": [3,3]
+        },
+
+        "resblock": {
+          "feature_size" : [128, 128, 128, 128],
+          "spatial_location": true,
+          "kernel1": [1,1],
+          "kernel2": [3,3]
+        },
+
+        "head": {
+          "spatial_location": true,
+          "conv_out": 1024,
+          "conv_kernel": [1,1],
+
+          "attention": {
+            "mode": "mean",
+            "no_attention_mlp": 256,
+            "no_glimpses": 1
+          }
+        }
       }
 
     },
@@ -28,7 +55,7 @@
 
     "fusion": {
         "apply_fusion" : true,
-        "mode" : "vis",
+        "mode" : "vis_left",
         "projection_size": 1024,
         "output_size": 512
     },
@@ -40,9 +67,9 @@
   },
 
   "optimizer": {
-    "no_epoch": 15,
+    "no_epoch": 20,
     "learning_rate": 1e-4,
-    "batch_size": 32,
+    "batch_size": 48,
     "clip_val": 5
   },
 

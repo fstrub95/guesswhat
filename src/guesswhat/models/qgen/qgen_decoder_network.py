@@ -51,7 +51,7 @@ class BasicDecoderWithState(tfc_seq.BasicDecoder):
 
     def step(self, time, inputs, state, name=None):
 
-        (outputs, next_state, next_inputs, finished) = super(BasicDecoderWithState, self).step(time, inputs, state, name=None)
+        (outputs, next_state, next_inputs, finished) = super(BasicDecoderWithState, self).step(time, inputs, state, name)
 
         # store state
         outputs = BasicDecoderWithStateOutput(
@@ -212,6 +212,7 @@ class QGenNetworkDecoder(AbstractNetwork):
                 output_layer=self.decoder_projection_layer)
 
             (self.decoder_outputs, self.decoder_states, _), _ , _ = tfc_seq.dynamic_decode(decoder, maximum_iterations=None)
+
 
             #####################
             #   LOSS

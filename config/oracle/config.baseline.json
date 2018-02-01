@@ -1,14 +1,14 @@
 {
-  "name" : "FiLM crop/image (+ inject cat/spat in FiLM  + rnn_att + feedback)",
+  "name" : "Baseline",
 
   "model": {
 
     "type" : "film",
-    "split_question" : false,
+    "split_question" : true,
 
     "inputs": {
-      "crop": true,
-      "image": true
+      "crop": false,
+      "image": false
     },
 
     "question": {
@@ -33,8 +33,8 @@
       "inputs" :
       {
        "question": true,
-       "category": false,
-       "spatial": false
+       "category": true,
+       "spatial": true
       },
 
       "no_mlp_units": 512
@@ -52,20 +52,10 @@
 
       "film_input":
       {
+        "question": true,
         "category": true,
-        "spatial": true,
-        "mask": false,
-
-        "reading_unit":
-        {
-          "reading_unit_type" : "att_rnn",
-          "stop_img_gradient": true,
-          "attention_units" : 0,
-          "shared_attention": true,
-          "fuse_mode" : "concat",
-          "feedback_loop" : true,
-          "rnn_size" : 256
-        }
+        "spatial": false,
+        "mask": false
       },
 
       "film_block":
@@ -116,7 +106,7 @@
       "film_input":
       {
         "question": true,
-        "category": false,
+        "category": true,
         "spatial": false,
         "mask": false
       },
@@ -163,7 +153,7 @@
     "batch_size": 64,
     "clip_val": 10.0,
     "weight_decay": 5e-6,
-    "weight_decay_remove": ["rnn", "word_embedding", "classifier", "spatial", "category", "image_reading_cell", "feedback_loop"]
+    "weight_decay_remove": ["head", "rnn", "word_embedding", "classifier", "spatial", "category"]
   },
 
   "dropout_keep_prob" : 0.5,

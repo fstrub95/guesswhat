@@ -139,7 +139,7 @@ class FiLM_Oracle(ResnetModel):
                         if config["inputs"]["mask"]:
                             res_output = tf.concat([res_output, self._mask], axis=3)
 
-                        neural_toolbox.
+
 
                         resblock = film.FiLMResblock(res_output, film_input,
                                                      kernel1=config["resblock"]["kernel1"],
@@ -221,7 +221,7 @@ class FiLM_Oracle(ResnetModel):
 
 
             with tf.variable_scope('accuracy'):
-                self.accuracy = 1 - tf.reduce_mean(utils.error(self.out, self._answer))
+                self.accuracy = 1 - tf.reduce_mean(self.success)
 
             tf.summary.scalar('accuracy', self.accuracy)
 

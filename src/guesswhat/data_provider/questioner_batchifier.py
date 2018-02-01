@@ -5,19 +5,41 @@ from generic.data_provider.batchifier import AbstractBatchifier, BatchifierSplit
 
 from generic.data_provider.image_preprocessors import get_spatial_feat
 from generic.data_provider.nlp_utils import padder, padder_3d
-
+import copy
 
 class Seq2SeqBatchifier(AbstractBatchifier):
 
-    def __init__(self, tokenizer, sources, status=list(), split_mode=BatchifierSplitMode.NoSplit, **kwargs):
+    def __init__(self, tokenizer, sources, status=list(), split_mode=BatchifierSplitMode.DialogueHistory, append_end_of_dialogue=True, **kwargs):
         self.tokenizer = tokenizer
         self.sources = sources
         self.status = status
         self.split_mode = split_mode
+        self.append_end_of_dialogue=append_end_of_dialogue
         self.kwargs = kwargs
 
+
     def split(self, games):
-        return batchifier_split_helper(games, split_mode=self.split_mode)
+
+        games = batchifier_split_helper(games, split_mode=self.split_mode)
+
+        games_with_EOD = []
+
+        if self.append_end_of_dialogue:
+            end_of_dialogue = self.tokenizer.decode([self.tokenizer.stop_dialogue])
+            for g in games:
+                games_with_EOD.append(g)
+
+                if g.is_full_dialogue:
+                    game_with_eod = copy.copy(g)
+                    game_with_eod.questions = g.questions + [end_of_dialogue]
+                    game_with_eod.question_ids = g.question_ids + [-1]
+                    game_with_eod.answers = g.answers + ["n/a"]  # Dummy token
+
+                    games_with_EOD.append(game_with_eod)
+
+            games = games_with_EOD
+
+        return games
 
     def filter(self, games):
 
@@ -45,13 +67,12 @@ class Seq2SeqBatchifier(AbstractBatchifier):
                 dialogue += q_tok
                 dialogue += a_tok
 
-            dialogue += [self.tokenizer.stop_token]  # Add STOP token
-
-            if game.is_full_dialogue:
-                dialogue += [self.tokenizer.stop_dialogue]
+            question = [self.tokenizer.start_token] + q_tokens[-1]
+            if question[-1] != self.tokenizer.stop_token:
+                question += [self.tokenizer.stop_token]
 
             batch["dialogue"].append(dialogue)
-            batch["question"].append(q_tokens[-1])
+            batch["question"].append(question)
 
             # image
             img = game.image.get_image()

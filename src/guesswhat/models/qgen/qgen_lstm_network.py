@@ -137,7 +137,7 @@ class QGenNetworkLSTM(AbstractNetwork):
             if policy_gradient:
 
                 with tf.variable_scope('rl_baseline'):
-                    decoder_out = tf.stop_gradient(self.decoder_output)  # take the LSTM output (and stop the gradient!)
+                    decoder_out = tf.stop_gradient(self.decoder_state)  # take the LSTM output (and stop the gradient!)
 
                     flat_decoder_output = tf.reshape(decoder_out, [-1, decoder_lstm_cell.output_size])  #
                     flat_h1 = utils.fully_connected(flat_decoder_output, n_out=100, activation='relu', scope='baseline_hidden')

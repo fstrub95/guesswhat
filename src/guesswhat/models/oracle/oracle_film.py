@@ -133,9 +133,13 @@ class FiLM_Oracle(ResnetModel):
 
                         self.reading_unit = create_reading_unit(last_state=self.last_rnn_states,
                                                                 states=self.rnn_states,
-                                                                config=config["image"]["film_input"]["reading_unit"])
+                                                                seq_length=self._seq_length,
+                                                                keep_dropout=dropout_keep,
+                                                                config=config["image"]["film_input"]["reading_unit"],
+                                                                reuse=reuse)
 
-                        film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit)
+                        stop_img_gradient = config["image"]["film_input"]["reading_unit"]["stop_img_gradient"]
+                        film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit, stop_gradient=stop_img_gradient)
 
                     with tf.variable_scope("image_film_stack", reuse=reuse):
 
@@ -221,7 +225,7 @@ class FiLM_Oracle(ResnetModel):
                                                           append_extra_features=append_extra_features,
                                                           reuse=reuse)
 
-                        film_crop_output = self.film_img_stack.get()
+                        film_crop_output = self.film_crop_stack.get()
                         film_crop_output = tf.nn.dropout(film_crop_output, dropout_keep)
 
                         self.classifier_input.append(film_crop_output)
