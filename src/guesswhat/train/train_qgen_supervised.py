@@ -16,7 +16,8 @@ from generic.data_provider.image_loader import get_img_builder
 from generic.data_provider.nlp_utils import GloveEmbeddings
 
 from guesswhat.data_provider.guesswhat_dataset import Dataset
-from guesswhat.data_provider.questioner_batchifier import LSTMBatchifier, Seq2SeqBatchifier
+from guesswhat.data_provider.questioner_batchifier import LSTMBatchifier
+from guesswhat.data_provider.seq2seq_batchifier import Seq2SeqBatchifier
 
 from guesswhat.data_provider.guesswhat_tokenizer import GWTokenizer
 

@@ -144,7 +144,8 @@ class QGenNetworkDecoder(AbstractNetwork):
                                                      reuse=reuse)
 
                     self.image_embedding =self.film_img_stack.get()
-                    self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
+
+            self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
 
 
             #####################
@@ -155,13 +156,15 @@ class QGenNetworkDecoder(AbstractNetwork):
 
                 with tf.variable_scope('fusion'):
 
-                    self.final_embedding = get_fusion_mechanism(input1=self.image_embedding,
-                                                                input2=self.dialogue_embedding,
-                                                                config=config["fusion"],
-                                                                dropout_keep=dropout_keep,
-                                                                reuse=reuse)
+                    self.final_embedding, need_dropout = get_fusion_mechanism(input1=self.image_embedding,
+                                                                  input2=self.dialogue_embedding,
+                                                                  config=config["fusion"],
+                                                                  dropout_keep=dropout_keep,
+                                                                  reuse=reuse)
 
-                    self.final_embedding = tf.nn.dropout(self.final_embedding, dropout_keep)
+                    if need_dropout:
+                        self.final_embedding = tf.nn.dropout(self.final_embedding, dropout_keep)
+
             else:
                 self.final_embedding = self.image_embedding
 
@@ -193,7 +196,7 @@ class QGenNetworkDecoder(AbstractNetwork):
             #   DECODER
             #####################
 
-            self.decoder_cell = tfc_rnn.GRUCell(num_units=config["decoder"]["num_units"],
+            self.decoder_cell = tfc_rnn.GRUCell(num_units=int(self.final_embedding.get_shape()[-1]),
                                                 activation=tf.nn.tanh,
                                                 reuse=reuse)
 

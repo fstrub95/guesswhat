@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM seq2seq + VIS_left",
+  "name" : "FiLM seq2seq",
 
   "model": {
 
@@ -54,23 +54,21 @@
     },
 
     "fusion": {
-        "apply_fusion" : true,
-        "mode" : "vis_left",
+        "apply_fusion" : false,
+        "mode" : "vis",
         "projection_size": 1024,
         "output_size": 512
-    },
-
-    "decoder": {
-      "num_units": 512
     }
-
   },
 
   "optimizer": {
     "no_epoch": 20,
     "learning_rate": 1e-4,
     "batch_size": 48,
-    "clip_val": 5
+    "clip_val": 10,
+    "weight_decay": 5e-6,
+    "weight_decay_add": ["film_stack"],
+    "weight_decay_remove": ["feedback_loop", "FiLM_layer" ,"pooling"]
   },
 
   "seed": -1

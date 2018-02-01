@@ -91,7 +91,8 @@ class GuesserNetwork(AbstractNetwork):
                     bidirectional=config["dialogue"]["bidirectional"],
                     max_pool=config["dialogue"]["max_pool"],
                     reuse=reuse)
-                # Note that dropout is applied latter
+
+                self.dialogue_embedding = tf.nn.dropout(self.dialogue_embedding, dropout_keep)
 
             #####################
             #   IMAGES
@@ -117,6 +118,7 @@ class GuesserNetwork(AbstractNetwork):
             else:
                 with tf.variable_scope("image_film_stack", reuse=reuse):
 
+
                     self.film_img_stack = FiLM_Stack(image=self.image_out,
                                                      film_input=self.dialogue_embedding,
                                                      attention_input=self.dialogue_embedding,
@@ -126,7 +128,8 @@ class GuesserNetwork(AbstractNetwork):
                                                      reuse=reuse)
 
                     self.image_embedding = self.film_img_stack.get()
-                    # Note that dropout is applied latter
+
+            self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
 
             #####################
             #   FUSION MECHANISM
@@ -135,25 +138,19 @@ class GuesserNetwork(AbstractNetwork):
             if config["fusion"]["apply_fusion"]:
 
                 with tf.variable_scope('fusion'):
-
-                    self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
-                    self.dialogue_embedding = tf.nn.dropout(self.dialogue_embedding, dropout_keep)
-
-                    self.visual_dialogue_embedding = get_fusion_mechanism(input1=self.image_embedding,
+                    self.visual_dialogue_embedding, _ = get_fusion_mechanism(input1=self.image_embedding,
                                                                           input2=self.dialogue_embedding,
                                                                           config=config["fusion"],
                                                                           dropout_keep=dropout_keep,
                                                                           reuse=reuse)
-                    # Note that dropout is applied latter
 
+                    # Note: do not apply dropout here (special case because of scalar product)
             else:
                 self.visual_dialogue_embedding = self.image_embedding
 
 
 
             if config["fusion"]["visual_dialogue_projection"] > 0:
-
-                self.visual_dialogue_embedding = tf.nn.dropout(self.visual_dialogue_embedding, dropout_keep)
 
                 self.visual_dialogue_embedding = tfc_layers.fully_connected(self.visual_dialogue_embedding,
                                            num_outputs=config["fusion"]["visual_dialogue_projection"],
