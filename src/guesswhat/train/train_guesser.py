@@ -33,6 +33,7 @@ if __name__ == '__main__':
     parser.add_argument("-img_dir", type=str, help='Directory with images')
     parser.add_argument("-config", type=str, help="Configuration file")
     parser.add_argument("-dict_file", type=str, default="dict.json", help="Dictionary file name")
+    parser.add_argument("-glove_file", type=str, default="glove_dict.pkl", help="Glove file name")
     parser.add_argument("-load_checkpoint", type=str, help="Load model parameters from specified checkpoint")
     parser.add_argument("-continue_exp", type=bool, default=False, help="Continue previously started experiment?")
     parser.add_argument("-gpu_ratio", type=float, default=1., help="How many GPU ram is required? (ratio)")
@@ -67,11 +68,11 @@ if __name__ == '__main__':
 
     # Load dictionary
     logger.info('Loading dictionary..')
-    tokenizer = GWTokenizer(os.path.join(args.data_dir, args.dict_file))
+    tokenizer = GWTokenizer(args.dict_file)
 
     # Build Network
     logger.info('Building network..')
-    network = GuesserNetwork(config['model'], num_words=tokenizer.no_words)
+    network = GuesserNetwork(config['model'], no_words=tokenizer.no_words)
 
     # Build Optimizer
     logger.info('Building optimizer..')
