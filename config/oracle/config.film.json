@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM crop/image (+ inject cat/spat in FiLM  + rnn_att + feedback(proj))",
+  "name" : "FiLM crop/image (+ inject cat/spat in FiLM  + dialogue - layernorm + film_max_pooling)",
 
   "model": {
 
@@ -16,6 +16,7 @@
       "rnn_state_size": 1048,
       "glove" : false,
       "bidirectional" : true,
+      "layer_norm" : true,
       "max_pool" : false
     },
 
@@ -58,13 +59,8 @@
 
         "reading_unit":
         {
-          "reading_unit_type" : "att_rnn",
-          "stop_img_gradient": true,
-          "attention_units" : 256,
-          "shared_attention": true,
-          "fuse_mode" : "concat",
-          "feedback_loop" : true,
-          "rnn_size" : 256
+          "reading_unit_type" : "only_question",
+          "stop_img_gradient" : true
         }
       },
 
@@ -93,7 +89,7 @@
           "no_mlp_units": 1024,
 
           "attention" : {
-            "mode": "mean",
+            "mode": "max",
             "no_attention_mlp" : 256,
             "no_glimpses" : 1
           }
@@ -145,7 +141,7 @@
           "no_mlp_units": 1024,
 
           "attention": {
-            "mode": "mean",
+            "mode": "max",
             "no_attention_mlp": 256,
             "no_glimpses": 1
           }
@@ -153,7 +149,6 @@
 
       }
     }
-
 
   },
 

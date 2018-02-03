@@ -90,6 +90,7 @@ class GuesserNetwork(AbstractNetwork):
                     num_hidden=config["dialogue"]["rnn_state_size"],
                     bidirectional=config["dialogue"]["bidirectional"],
                     max_pool=config["dialogue"]["max_pool"],
+                    layer_norm=config["dialogue"]["layer_norm"],
                     reuse=reuse)
 
                 self.dialogue_embedding = tf.nn.dropout(self.dialogue_embedding, dropout_keep)

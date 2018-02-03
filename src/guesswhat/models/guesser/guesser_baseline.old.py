@@ -106,6 +106,7 @@ class GuesserNetwork(AbstractNetwork):
                     num_hidden=config["rnn_config"]["num_rnn_units"],
                     bidirectional=config["rnn_config"]["bidirectional"],
                     max_pool=config["rnn_config"]["max_pool"],
+                    layer_norm=config["rnn_config"]["layer_norm"],
                     reuse=reuse)
 
             #####################

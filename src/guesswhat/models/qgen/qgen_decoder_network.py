@@ -107,6 +107,7 @@ class QGenNetworkDecoder(AbstractNetwork):
                 num_hidden=config["dialogue"]["rnn_state_size"],
                 bidirectional=config["dialogue"]["bidirectional"],
                 max_pool=config["dialogue"]["max_pool"],
+                layer_norm=config["dialogue"]["layer_norm"],
                 reuse=reuse)
             self.dialogue_embedding = tf.nn.dropout(self.rnn_last_states, dropout_keep)
 
@@ -144,8 +145,7 @@ class QGenNetworkDecoder(AbstractNetwork):
                                                      reuse=reuse)
 
                     self.image_embedding =self.film_img_stack.get()
-
-            self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
+                    self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
 
 
             #####################
@@ -196,16 +196,14 @@ class QGenNetworkDecoder(AbstractNetwork):
             #   DECODER
             #####################
 
-            self.decoder_cell = tfc_rnn.GRUCell(num_units=int(self.final_embedding.get_shape()[-1]),
-                                                activation=tf.nn.tanh,
+            self.decoder_cell = rnn.create_cell(num_units=int(self.final_embedding.get_shape()[-1]),
+                                                layer_norm=False, # TODO use layer norm if it works!
                                                 reuse=reuse)
-
 
             self.decoder_projection_layer = utils.MultiLayers(
                 [   tf.layers.Dropout(dropout_keep),
                     tf.layers.Dense(num_words, use_bias=False),
                 ])
-
 
             training_helper = tfc_seq.TrainingHelper(inputs=self.word_emb_question,  # The question is the target
                                                      sequence_length=self._seq_length_question-1) # -1 : remove start token a decoding time

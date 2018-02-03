@@ -52,6 +52,7 @@ class FiLM_Oracle(ResnetModel):
                 num_hidden=config["question"]["rnn_state_size"],
                 bidirectional=config["question"]["bidirectional"],
                 max_pool=config["question"]["max_pool"],
+                layer_norm=config["question"]["layer_norm"],
                 reuse=reuse)
 
             self.last_rnn_states = tf.nn.dropout(self.last_rnn_states, dropout_keep)
