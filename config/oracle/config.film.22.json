@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + att_rnn (grad)",
+  "name" : "FiLM (cell): -classif, +FiLM, +attention + att_rnn (proj)",
 
   "model": {
 
@@ -49,8 +49,8 @@
 
       "reading_unit": {
         "reading_unit_type" : "att_rnn",
-        "stop_img_gradient" : false,
-        "attention_units" : 0,
+        "stop_img_gradient" : true,
+        "attention_units" : 200,
         "shared_attention": true,
         "feedback_loop" : true,
         "fuse_mode" : "dot"

@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (no cell): classif[+question+obj], FiLM[+question+obj] +question -attention",
+  "name" : "Baseline: -object +question -attention",
 
   "model": {
 
@@ -33,81 +33,43 @@
     {
       "inputs" :
       {
-       "question": true,
-       "category": true,
-       "spatial": true
+       "category": false,
+       "spatial": false,
+
+       "reading_unit":
+       {
+        "reading_unit_type" : "only_question",
+        "stop_img_gradient" : true
+       }
+
       },
 
       "no_mlp_units": 512
     },
 
-    "film_input":
+    "image":
     {
-      "category": true,
-      "spatial": true,
-      "mask": false,
-
-      "reading_unit": {
-        "reading_unit_type" : "only_question",
-        "stop_img_gradient" : true
-      }
-
-    },
-
-
-    "image": {
       "image_input": "conv",
       "dim": [14, 14, 1024],
       "normalize": false,
 
       "attention" : {
-        "mode": "none"
+        "mode": "mean"
       }
 
     },
 
-    "crop": {
+    "crop":
+    {
       "image_input": "conv",
       "dim": [14, 14, 1024],
       "normalize": false,
       "scale" : 1.1,
 
       "attention" : {
-        "mode": "none"
+        "mode": "mean"
       }
 
-    },
-
-    "film_block":
-    {
-      "stem" : {
-        "spatial_location" : true,
-        "mask" : true,
-        "conv_out": 256,
-        "conv_kernel": [3,3]
-      },
-
-      "resblock" : {
-        "feature_size" : [128, 128, 128, 128],
-        "spatial_location" : true,
-        "mask" : true,
-        "kernel1" : [1,1],
-        "kernel2" : [3,3]
-      },
-
-      "head" : {
-        "spatial_location" : true,
-        "mask" : true,
-        "conv_out": 1024,
-        "conv_kernel": [1,1],
-        "no_mlp_units": 1024,
-
-        "attention" : {
-          "mode": "mean",
-          "no_attention_mlp" : 256,
-          "no_glimpses" : 1
-        }
-      }
     }
 
   },

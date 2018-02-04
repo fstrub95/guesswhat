@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + att_rnn (grad)",
+  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + feedback1 (grad)",
 
   "model": {
 
@@ -48,7 +48,7 @@
       "mask": false,
 
       "reading_unit": {
-        "reading_unit_type" : "att_rnn",
+        "reading_unit_type" : "basic1",
         "stop_img_gradient" : false,
         "attention_units" : 0,
         "shared_attention": true,

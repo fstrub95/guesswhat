@@ -98,14 +98,16 @@ class FiLM_Oracle(ResnetModel):
             #####################
 
             if config["inputs"]["image"]:
+
                 self._image = tf.placeholder(tf.float32, [self.batch_size] + config['image']["dim"], name='image')
-                self.image_out = get_image_features(
-                    image=self._image, question=self.last_rnn_states,
-                    is_training=self._is_training,
-                    scope_name="image_processing",
-                    config=config['image'],
-                    dropout_keep=dropout_keep
-                )
+                with tf.variable_scope("image", reuse=reuse):
+                    self.image_out = get_image_features(
+                        image=self._image, question=self.last_rnn_states,
+                        is_training=self._is_training,
+                        scope_name="image_processing",
+                        config=config['image'],
+                        dropout_keep=dropout_keep
+                    )
 
                 # apply attention or use vgg features
                 if len(self.image_out.get_shape()) == 2:
@@ -119,13 +121,13 @@ class FiLM_Oracle(ResnetModel):
                     self.film_img_input = []
                     with tf.variable_scope("image_film_input", reuse=reuse):
 
-                        if config["image"]["film_input"]["category"]:
+                        if config["film_input"]["category"]:
                             self.film_img_input.append(cat_emb)
 
-                        if config["image"]["film_input"]["spatial"]:
+                        if config["film_input"]["spatial"]:
                             self.film_img_input.append(spatial_emb)
 
-                        if config["image"]["film_input"]["mask"]:
+                        if config["film_input"]["mask"]:
                             mask_dim = int(self.image_out.get_shape()[1]) * int(self.image_out.get_shape()[2])
                             flat_mask = tf.reshape(self._mask, shape=[-1, mask_dim])
                             self.film_crop_input.append(flat_mask)
@@ -136,11 +138,11 @@ class FiLM_Oracle(ResnetModel):
                                                                 states=self.rnn_states,
                                                                 seq_length=self._seq_length,
                                                                 keep_dropout=dropout_keep,
-                                                                config=config["image"]["film_input"]["reading_unit"],
+                                                                config=config["film_input"]["reading_unit"],
                                                                 reuse=reuse)
 
-                        stop_img_gradient = config["image"]["film_input"]["reading_unit"]["stop_img_gradient"]
-                        film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit, stop_gradient=stop_img_gradient)
+                        stop_gradient = config["film_input"]["reading_unit"]["stop_img_gradient"]
+                        film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit, stop_gradient=stop_gradient)
 
                     with tf.variable_scope("image_film_stack", reuse=reuse):
 
@@ -157,7 +159,7 @@ class FiLM_Oracle(ResnetModel):
                                                          film_layer_fct=film_layer_fct,
                                                          is_training=self._is_training,
                                                          dropout_keep=dropout_keep,
-                                                         config=config["image"]["film_block"],
+                                                         config=config["film_block"],
                                                          append_extra_features=append_extra_features,
                                                          reuse=reuse)
 
@@ -171,14 +173,17 @@ class FiLM_Oracle(ResnetModel):
             #####################
 
             if config["inputs"]["crop"]:
+
                 self._crop = tf.placeholder(tf.float32, [self.batch_size] + config['crop']["dim"], name='crop')
-                self.crop_out = get_image_features(
-                    image=self._crop, question=self.last_rnn_states,
-                    is_training=self._is_training,
-                    scope_name="crop_processing",
-                    config=config['crop'],
-                    dropout_keep=dropout_keep
-                )
+
+                with tf.variable_scope("crop_film_input", reuse=reuse):
+                    self.crop_out = get_image_features(
+                        image=self._crop, question=self.last_rnn_states,
+                        is_training=self._is_training,
+                        scope_name="crop_processing",
+                        config=config['crop'],
+                        dropout_keep=dropout_keep
+                    )
 
                 # apply attention or use vgg features
                 if len(self.crop_out.get_shape()) == 2:
@@ -190,23 +195,30 @@ class FiLM_Oracle(ResnetModel):
                     self._mask_crop = tf.expand_dims(self._mask_crop, axis=-1)
 
                     self.film_crop_input = []
-                    with tf.variable_scope("image_film_input", reuse=reuse):
+                    with tf.variable_scope("crop_film_input", reuse=reuse):
 
-                        if config["crop"]["film_input"]["question"]:
-                            self.film_crop_input.append(self.last_rnn_states)
-
-                        if config["crop"]["film_input"]["category"]:
+                        if config["film_input"]["category"]:
                             self.film_crop_input.append(cat_emb)
 
-                        if config["crop"]["film_input"]["spatial"]:
+                        if config["film_input"]["spatial"]:
                             self.film_crop_input.append(spatial_emb)
 
-                        if config["crop"]["film_input"]["mask"]:
+                        if config["film_input"]["mask"]:
                             mask_dim = int(self.crop_out.get_shape()[1]) * int(self.crop_out.get_shape()[2])
                             flat_mask = tf.reshape(self._mask_crop, shape=[-1, mask_dim])
                             self.film_crop_input.append(flat_mask)
 
-                        self.film_crop_input = tf.concat(self.film_crop_input, axis=1)
+                        with tf.variable_scope("crop_reading_cell"):
+
+                            self.reading_unit = create_reading_unit(last_state=self.last_rnn_states,
+                                                                    states=self.rnn_states,
+                                                                    seq_length=self._seq_length,
+                                                                    keep_dropout=dropout_keep,
+                                                                    config=config["film_input"]["reading_unit"],
+                                                                    reuse=reuse)
+
+                            stop_gradient = config["film_input"]["reading_unit"]["stop_img_gradient"]
+                            film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit, stop_gradient=stop_gradient)
 
                     with tf.variable_scope("crop_film_stack", reuse=reuse):
 
@@ -220,9 +232,10 @@ class FiLM_Oracle(ResnetModel):
                         self.film_crop_stack = FiLM_Stack(image=self.crop_out,
                                                           film_input=self.film_crop_input,
                                                           attention_input=self.last_rnn_states,
+                                                          film_layer_fct=film_layer_fct,
                                                           is_training=self._is_training,
                                                           dropout_keep=dropout_keep,
-                                                          config=config["crop"]["film_block"],
+                                                          config=config["film_block"],
                                                           append_extra_features=append_extra_features,
                                                           reuse=reuse)
 
@@ -237,8 +250,6 @@ class FiLM_Oracle(ResnetModel):
             #####################
 
             with tf.variable_scope("classifier", reuse=reuse):
-                if config["classifier"]["inputs"]["question"]:
-                    self.classifier_input.append(self.last_rnn_states)
 
                 if config["classifier"]["inputs"]["category"]:
                     self.classifier_input.append(cat_emb)
@@ -292,7 +303,7 @@ class FiLM_Oracle(ResnetModel):
 if __name__ == "__main__":
 
     import json
-    with open("../../../../config/oracle/config.film.json", 'rb') as f_config:
+    with open("../../../../config/oracle/config.film.json", 'r') as f_config:
         config = json.load(f_config)
 
     get_recursively(config, "spatial", no_field_recursive=True)

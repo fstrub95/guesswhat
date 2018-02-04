@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + att_rnn (grad)",
+  "name" : "FiLM (no cell): classif[-question-obj], FiLM[+question+obj] +dialogue +attention",
 
   "model": {
 
@@ -48,12 +48,8 @@
       "mask": false,
 
       "reading_unit": {
-        "reading_unit_type" : "att_rnn",
-        "stop_img_gradient" : false,
-        "attention_units" : 0,
-        "shared_attention": true,
-        "feedback_loop" : true,
-        "fuse_mode" : "dot"
+        "reading_unit_type" : "only_question",
+        "stop_img_gradient" : true
       }
 
     },
