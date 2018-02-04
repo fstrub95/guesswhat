@@ -251,6 +251,9 @@ class FiLM_Oracle(ResnetModel):
 
             with tf.variable_scope("classifier", reuse=reuse):
 
+                if config["classifier"]["inputs"]["question"]:
+                    self.classifier_input.append(self.last_rnn_states)
+
                 if config["classifier"]["inputs"]["category"]:
                     self.classifier_input.append(cat_emb)
 

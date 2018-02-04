@@ -116,7 +116,7 @@ if __name__ == '__main__':
     oracle_var = [v for v in tf.global_variables() if "oracle" in v.name]
     oracle_saver = tf.train.Saver(var_list=oracle_var)
 
-    guesser_network = GuesserNetwork(guesser_config["model"], num_words=tokenizer.no_words)
+    guesser_network = GuesserNetwork(guesser_config["model"], no_words=tokenizer.no_words)
     guesser_var = [v for v in tf.global_variables() if "guesser" in v.name]
     guesser_saver = tf.train.Saver(var_list=guesser_var)
 
@@ -171,7 +171,7 @@ if __name__ == '__main__':
 
         sess.run(tf.global_variables_initializer())
         if args.continue_exp: # TODO only reload qgen ckpt
-            qgen_saver.restore(sess, save_path.format('params.ckpt'))
+                qgen_saver.restore(sess, save_path.format('params.ckpt'))
         else:
             qgen_saver.restore(sess, os.path.join(args.networks_dir, 'qgen', args.qgen_identifier, 'params.ckpt'))
 

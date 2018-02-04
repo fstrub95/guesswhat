@@ -1,8 +1,9 @@
 {
-  "name" : "FiLM +attention",
+  "name" : "FiLM+VIS",
 
   "model": {
-    
+
+
     "image":
     {
       "image_input": "conv",
@@ -33,7 +34,7 @@
           "conv_kernel": [1,1],
 
           "attention": {
-            "mode": "glimpse",
+            "mode": "mean",
             "no_attention_mlp": 256,
             "no_glimpses": 1
           }
@@ -54,7 +55,10 @@
     },
 
     "fusion": {
-        "apply_fusion" : false
+        "apply_fusion" : true,
+        "mode" : "vis",
+        "projection_size": 1024,
+        "output_size": 512
     }
   },
 

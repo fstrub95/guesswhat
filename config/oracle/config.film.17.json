@@ -48,7 +48,7 @@
       "mask": false,
 
       "reading_unit": {
-        "reading_unit_type" : "basic1",
+        "reading_unit_type" : "basic",
         "stop_img_gradient" : false,
         "attention_units" : 0,
         "shared_attention": true,

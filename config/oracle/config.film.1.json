@@ -33,15 +33,9 @@
     {
       "inputs" :
       {
+       "question": true,
        "category": false,
-       "spatial": false,
-
-       "reading_unit":
-       {
-        "reading_unit_type" : "only_question",
-        "stop_img_gradient" : true
-       }
-
+       "spatial": false
       },
 
       "no_mlp_units": 512

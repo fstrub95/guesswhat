@@ -1,8 +1,9 @@
 {
-  "name" : "FiLM +attention",
+  "name" : "VIS",
 
   "model": {
-    
+
+
     "image":
     {
       "image_input": "conv",
@@ -10,34 +11,7 @@
       "normalize": false,
 
       "attention" : {
-        "mode": "none"
-      },
-
-      "film_block": {
-        "stem": {
-          "spatial_location": true,
-          "conv_out": 256,
-          "conv_kernel": [3,3]
-        },
-
-        "resblock": {
-          "feature_size" : [128, 128, 128, 128],
-          "spatial_location": true,
-          "kernel1": [1,1],
-          "kernel2": [3,3]
-        },
-
-        "head": {
-          "spatial_location": true,
-          "conv_out": 1024,
-          "conv_kernel": [1,1],
-
-          "attention": {
-            "mode": "glimpse",
-            "no_attention_mlp": 256,
-            "no_glimpses": 1
-          }
-        }
+        "mode": "mean"
       }
 
     },
@@ -54,7 +28,10 @@
     },
 
     "fusion": {
-        "apply_fusion" : false
+        "apply_fusion" : true,
+        "mode" : "vis",
+        "projection_size": 1024,
+        "output_size": 512
     }
   },
 

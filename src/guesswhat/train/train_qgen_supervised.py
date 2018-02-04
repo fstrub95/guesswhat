@@ -114,7 +114,7 @@ if __name__ == '__main__':
         # Create training tools
         evaluator = Evaluator(sources, network.scope_name, network=network, tokenizer=tokenizer)
         # batchifier = LSTMBatchifier(tokenizer, sources, status=('success',))
-        batchifier = Seq2SeqBatchifier(tokenizer, sources, status=('success',), )
+        batchifier = Seq2SeqBatchifier(tokenizer, sources, status=('success',))
 
 
         from guesswhat.train.eval_listener import QGenListener

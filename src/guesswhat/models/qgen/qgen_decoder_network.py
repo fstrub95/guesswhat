@@ -119,7 +119,7 @@ class QGenNetworkDecoder(AbstractNetwork):
             self._image = tf.placeholder(tf.float32, [batch_size] + config['image']["dim"], name='image')
             self.image_out = get_image_features(
                 image=self._image,
-                question=None,  # no attention at this point
+                question=self.rnn_last_states,
                 is_training=self._is_training,
                 scope_name="image_processing",
                 config=config['image'])
@@ -175,7 +175,6 @@ class QGenNetworkDecoder(AbstractNetwork):
 
             self._question = tf.placeholder(tf.int32, [batch_size, None], name='question')
             self._seq_length_question = tf.placeholder(tf.int32, [batch_size], name='seq_length_question')
-
 
             input_question = self._question[:, :-1]  # Ignore start token
             target_question = self._question[:, 1:]  # Ignore stop token

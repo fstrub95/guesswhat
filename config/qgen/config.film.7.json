@@ -2,7 +2,8 @@
   "name" : "FiLM +attention",
 
   "model": {
-    
+
+
     "image":
     {
       "image_input": "conv",
