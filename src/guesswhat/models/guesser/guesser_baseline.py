@@ -26,11 +26,9 @@ class GuesserNetwork(AbstractNetwork):
 
 
             #####################
-            #   DIALOGUE
+            #   OBJECTS
             #####################
 
-
-            # Objects
             #self._obj_mask = tf.placeholder(tf.float32, [batch_size, None], name='obj_mask')
             self._num_object = tf.placeholder(tf.int32, [batch_size], name='obj_seq_length')
             self._obj_cats = tf.placeholder(tf.int32, [batch_size, None], name='obj_cats')
@@ -65,7 +63,6 @@ class GuesserNetwork(AbstractNetwork):
             #   DIALOGUE
             #####################
 
-            # Dialogues
             self._dialogue = tf.placeholder(tf.int32, [batch_size, None], name='dialogue')
             self._seq_length_dialogue = tf.placeholder(tf.int32, [batch_size], name='seq_length_dialogue')
 
@@ -99,55 +96,56 @@ class GuesserNetwork(AbstractNetwork):
             #   IMAGES
             #####################
 
-            self._image = tf.placeholder(tf.float32, [batch_size] + config['image']["dim"], name='image')
-            self.image_out = get_image_features(
-                image=self._image,
-                question=self.dialogue_embedding,
-                is_training=self._is_training,
-                scope_name="image_processing",
-                config=config['image'],
-                reuse=reuse)
+            if config['image']['use_image']:
+                self._image = tf.placeholder(tf.float32, [batch_size] + config['image']["dim"], name='image')
+                self.image_out = get_image_features(
+                    image=self._image,
+                    question=self.dialogue_embedding,
+                    is_training=self._is_training,
+                    scope_name="image_processing",
+                    config=config['image'],
+                    reuse=reuse)
 
-            #####################
-            #   FiLM
-            #####################
+                #####################
+                #   FiLM
+                #####################
 
-            # Use attention or use vgg features
-            if len(self.image_out.get_shape()) == 2:
-                self.image_embedding = self.image_out
+                # Use attention or use vgg features
+                if len(self.image_out.get_shape()) == 2:
+                    self.image_embedding = self.image_out
+
+                else:
+                    with tf.variable_scope("image_film_stack", reuse=reuse):
+
+
+                        self.film_img_stack = FiLM_Stack(image=self.image_out,
+                                                         film_input=self.dialogue_embedding,
+                                                         attention_input=self.dialogue_embedding,
+                                                         is_training=self._is_training,
+                                                         dropout_keep=dropout_keep,
+                                                         config=config["image"]["film_block"],
+                                                         reuse=reuse)
+
+                        self.image_embedding = self.film_img_stack.get()
+
+                self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
 
             else:
-                with tf.variable_scope("image_film_stack", reuse=reuse):
-
-
-                    self.film_img_stack = FiLM_Stack(image=self.image_out,
-                                                     film_input=self.dialogue_embedding,
-                                                     attention_input=self.dialogue_embedding,
-                                                     is_training=self._is_training,
-                                                     dropout_keep=dropout_keep,
-                                                     config=config["image"]["film_block"],
-                                                     reuse=reuse)
-
-                    self.image_embedding = self.film_img_stack.get()
-
-            self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
+                assert config['fusion']['mode'] == "none", "If you don't want to use image, set fusion to None"
+                self.image_embedding = None
 
             #####################
             #   FUSION MECHANISM
             #####################
 
-            if config["fusion"]["apply_fusion"]:
+            with tf.variable_scope('fusion'):
+                self.visual_dialogue_embedding, _ = get_fusion_mechanism(input1=self.image_embedding,
+                                                                      input2=self.dialogue_embedding,
+                                                                      config=config["fusion"],
+                                                                      dropout_keep=dropout_keep,
+                                                                      reuse=reuse)
 
-                with tf.variable_scope('fusion'):
-                    self.visual_dialogue_embedding, _ = get_fusion_mechanism(input1=self.image_embedding,
-                                                                          input2=self.dialogue_embedding,
-                                                                          config=config["fusion"],
-                                                                          dropout_keep=dropout_keep,
-                                                                          reuse=reuse)
-
-                    # Note: do not apply dropout here (special case because of scalar product)
-            else:
-                self.visual_dialogue_embedding = self.image_embedding
+                # Note: do not apply dropout here (special case because of scalar product)
 
 
 
@@ -157,6 +155,7 @@ class GuesserNetwork(AbstractNetwork):
                                            num_outputs=config["fusion"]["visual_dialogue_projection"],
                                            activation_fn=tf.nn.relu,
                                            scope='visual_dialogue_projection')
+
 
 
             #####################

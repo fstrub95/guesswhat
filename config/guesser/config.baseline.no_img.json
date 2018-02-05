@@ -1,5 +1,5 @@
 {
-  "name" : "Film_base_with_gru",
+  "name" : "Baseline without img",
   "model": {
 
     "object":
@@ -23,7 +23,7 @@
     },
 
     "fusion": {
-        "mode" : "dot",
+        "mode" : "none",
         "projection_size": 1024,
         "output_size": 512,
         "visual_dialogue_projection" : 512
@@ -31,7 +31,7 @@
 
 
     "image": {
-      "use_image" : true,
+      "use_image" : false,
       "image_input": "conv",
       "dim": [14,14,1024],
       "normalize": false,
