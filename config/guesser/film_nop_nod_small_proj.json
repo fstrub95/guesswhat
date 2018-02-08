@@ -1,5 +1,5 @@
 {
-  "name" : "Film_base_with_gru",
+  "name" : "Film no projection after fusion and no dialog is reinjected, smaller conv on top (bad name on cedar)",
   "model": {
 
     "object":
@@ -14,7 +14,7 @@
 
     "dialogue":
     {
-      "reinject_for_fusion": true,
+      "reinject_for_fusion": false,
       "word_embedding_dim" : 300,
       "glove" : false,
       "rnn_state_size": 1024,
@@ -24,10 +24,10 @@
     },
 
     "fusion": {
-        "mode" : "dot",
+        "mode" : "none",
         "projection_size": 1024,
         "output_size": 512,
-        "visual_dialogue_projection" : 512
+        "visual_dialogue_projection" : 0
     },
 
 
@@ -57,7 +57,7 @@
 
         "head": {
           "spatial_location": true,
-          "conv_out": 1024,
+          "conv_out": 512,
           "conv_kernel": [1,1],
 
           "attention": {

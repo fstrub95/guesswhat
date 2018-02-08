@@ -1,5 +1,5 @@
 {
-  "name" : "Film_base_with_gru",
+  "name" : "Film no projection, no diag reinjected, smaller conv, scoring on top",
   "model": {
 
     "object":
@@ -14,20 +14,28 @@
 
     "dialogue":
     {
-      "reinject_for_fusion": true,
+      "reinject_for_fusion": false,
       "word_embedding_dim" : 300,
       "glove" : false,
       "rnn_state_size": 1024,
+      "use_lstm": false,
       "bidirectional" : true,
       "max_pool" : false,
       "layer_norm" : true
     },
 
     "fusion": {
-        "mode" : "dot",
+        "mode" : "none",
         "projection_size": 1024,
         "output_size": 512,
-        "visual_dialogue_projection" : 512
+        "visual_dialogue_projection" : 0
+    },
+
+    "scoring_object" :
+    {
+      "use_scoring_mlp": true,
+      "scoring_mlp_hidden": 0,
+      "activation": "relu"
     },
 
 
@@ -57,7 +65,7 @@
 
         "head": {
           "spatial_location": true,
-          "conv_out": 1024,
+          "conv_out": 512,
           "conv_kernel": [1,1],
 
           "attention": {

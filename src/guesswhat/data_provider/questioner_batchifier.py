@@ -6,11 +6,15 @@ from generic.data_provider.batchifier import AbstractBatchifier
 from generic.data_provider.image_preprocessors import get_spatial_feat
 from generic.data_provider.nlp_utils import padder, padder_3d
 
+from itertools import chain
+
+
 class LSTMBatchifier(AbstractBatchifier):
 
-    def __init__(self, tokenizer, sources, status=list(), **kwargs):
+    def __init__(self, tokenizer, sources, glove=None, status=list(), **kwargs):
         self.tokenizer = tokenizer
         self.sources = sources
+        self.glove = glove
         self.status = status
         self.kwargs = kwargs
 
@@ -24,6 +28,7 @@ class LSTMBatchifier(AbstractBatchifier):
 
         batch = collections.defaultdict(list)
         batch_size = len(games)
+        tokenizer = self.tokenizer
 
         all_answer_indices = []
         for i, game in enumerate(games):
@@ -49,6 +54,20 @@ class LSTMBatchifier(AbstractBatchifier):
 
             batch["dialogue"].append(tokens)
             all_answer_indices.append(answer_indices)
+
+            if 'glove' in self.sources:
+                questions = []
+                for q, a in zip(game.questions, game.answers):
+                    questions.append(self.tokenizer.tokenize_question(q))
+                    questions.append([self.tokenizer.format_answer(a)])
+                questions = list(chain.from_iterable(questions))
+                glove_vectors = self.glove.get_embeddings(questions)
+
+                # Add start token and end token to glove_embedding (otherwise cannot concatenate word embedding and glove)
+                glove_vectors.insert(0, np.zeros_like(glove_vectors[0]))
+                glove_vectors.append(np.zeros_like(glove_vectors[0]))
+
+                batch['glove'].append(glove_vectors)
 
             # Object embedding
             obj_spats, obj_cats = [], []
@@ -98,5 +117,9 @@ class LSTMBatchifier(AbstractBatchifier):
         # batch['obj_mask'] = np.zeros((batch_size, max_objects), dtype=np.float32)
         # for i in range(batch_size):
         #     batch['obj_mask'][i, :obj_length[i]] = 1.0
+
+        if 'glove' in self.sources:
+            # (?, 16, 300)   (batch, max num word, glove emb size)
+            batch['glove'], _ = padder_3d(batch['glove'])
 
         return batch

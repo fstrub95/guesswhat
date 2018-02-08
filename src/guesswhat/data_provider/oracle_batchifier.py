@@ -103,6 +103,7 @@ class OracleBatchifier(AbstractBatchifier):
             batch['question'], batch['seq_length'] = padder(batch['question'], padding_symbol=tokenizer.word2i['<padding>'])
 
         if 'glove' in sources:
+            # (?, 16, 300)   (batch, max num word, glove emb size)
             batch['glove'], _ = padder_3d(batch['glove'])
 
         return batch
