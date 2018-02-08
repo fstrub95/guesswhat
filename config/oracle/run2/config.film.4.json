@@ -1,10 +1,10 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + feedback3 (grad+no_shared)",
+  "name" : "Baseline: +object +question +attention",
 
   "model": {
 
     "type" : "film",
-    "split_question" : false,
+    "split_question" : true,
 
     "inputs": {
       "crop": true,
@@ -33,88 +33,41 @@
     {
       "inputs" :
       {
-       "question": false,
-       "category": false,
-       "spatial": false
+       "question": true,
+       "category": true,
+       "spatial": true
       },
 
       "no_mlp_units": 512
     },
 
-    "film_input":
+    "image":
     {
-      "category": true,
-      "spatial": true,
-      "mask": false,
-
-      "reading_unit": {
-        "reading_unit_type" : "no_mem",
-        "stop_img_gradient" : false,
-        "attention_units" : 0,
-        "shared_attention": false,
-        "feedback_loop" : true,
-        "gating" : "relu",
-        "fuse_mode" : "dot"
-      }
-
-    },
-
-
-    "image": {
       "image_input": "conv",
       "dim": [14, 14, 1024],
       "normalize": false,
 
       "attention" : {
-        "mode": "none"
-      }
+          "mode": "glimpse",
+          "no_attention_mlp" : 256,
+          "no_glimpses" : 1
+        }
 
     },
 
-    "crop": {
+    "crop":
+    {
       "image_input": "conv",
       "dim": [14, 14, 1024],
       "normalize": false,
       "scale" : 1.1,
 
       "attention" : {
-        "mode": "none"
-      }
-
-    },
-
-    "film_block":
-    {
-      "stem" : {
-        "spatial_location" : true,
-        "mask" : true,
-        "conv_out": 256,
-        "conv_kernel": [3,3]
-      },
-
-      "resblock" : {
-        "feature_size" : [128, 128, 128, 128],
-        "spatial_location" : true,
-        "mask" : true,
-        "kernel1" : [1,1],
-        "kernel2" : [3,3]
-      },
-
-      "head" : {
-        "spatial_location" : true,
-        "mask" : true,
-        "conv_out": 1024,
-        "conv_kernel": [1,1],
-        "no_mlp_units": 1024,
-
-        "attention" : {
           "mode": "glimpse",
           "no_attention_mlp" : 256,
           "no_glimpses" : 1
         }
-      }
     }
-
   },
 
   "optimizer": {

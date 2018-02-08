@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + feedback3 (grad+no_shared)",
+  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + no feedback",
 
   "model": {
 
@@ -48,11 +48,11 @@
       "mask": false,
 
       "reading_unit": {
-        "reading_unit_type" : "no_mem",
-        "stop_img_gradient" : false,
+        "reading_unit_type" : "basic",
+        "stop_img_gradient" : true,
         "attention_units" : 0,
-        "shared_attention": false,
-        "feedback_loop" : true,
+        "shared_attention": true,
+        "feedback_loop" : false,
         "gating" : "relu",
         "fuse_mode" : "dot"
       }

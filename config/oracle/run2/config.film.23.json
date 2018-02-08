@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + feedback3 (grad+no_shared)",
+  "name" : "FiLM (cell): -classif, +FiLM, +attention + no_mem (grad+no_shared)",
 
   "model": {
 
