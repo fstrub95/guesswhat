@@ -13,6 +13,7 @@ from generic.utils.config import load_config
 from generic.utils.file_handlers import pickle_dump
 from generic.utils.thread_pool import create_cpu_pool
 from generic.data_provider.image_loader import get_img_builder
+from generic.data_provider.nlp_utils import GloveEmbeddings
 
 from guesswhat.data_provider.guesswhat_dataset import Dataset
 from guesswhat.data_provider.questioner_batchifier import LSTMBatchifier
@@ -58,8 +59,6 @@ if __name__ == '__main__':
         image_builder = get_img_builder(config['model']['image'], args.img_dir)
         use_resnet = image_builder.is_raw_image()
 
-
-
     # Load data
     logger.info('Loading data..')
     trainset = Dataset(args.data_dir, "train", image_builder, crop_builder, args.no_games_to_load)
@@ -69,6 +68,12 @@ if __name__ == '__main__':
     # Load dictionary
     logger.info('Loading dictionary..')
     tokenizer = GWTokenizer(args.dict_file)
+
+    # Load glove
+    glove = None
+    if config["model"]["dialogue"]['glove']:
+        logger.info('Loading glove..')
+        glove = GloveEmbeddings(args.glove_file)
 
     # Build Network
     logger.info('Building network..')
@@ -117,7 +122,7 @@ if __name__ == '__main__':
 
         # create training tools
         evaluator = Evaluator(sources, network.scope_name, network=network, tokenizer=tokenizer)
-        batchifier = LSTMBatchifier(tokenizer, sources, status=('success',))
+        batchifier = LSTMBatchifier(tokenizer, sources, glove=glove, status=('success',))
 
         for t in range(start_epoch, no_epoch):
 

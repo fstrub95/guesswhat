@@ -1,5 +1,5 @@
 {
-  "name" : "Film_base_with_gru",
+  "name" : "Film no projection after fusion and no dialog is reinjected bi gru maxpool",
   "model": {
 
     "object":
@@ -9,25 +9,33 @@
       "spat_dim": 8,
 
       "obj_emb_hidden": 512,
-      "obj_emb_dim" : 512
+      "obj_emb_dim" : 1024
     },
 
     "dialogue":
     {
-      "reinject_for_fusion": true,
+      "reinject_for_fusion": false,
       "word_embedding_dim" : 300,
       "glove" : false,
       "rnn_state_size": 1024,
+      "use_lstm": false,
       "bidirectional" : true,
-      "max_pool" : false,
+      "max_pool" : true,
       "layer_norm" : true
     },
 
     "fusion": {
-        "mode" : "dot",
+        "mode" : "none",
         "projection_size": 1024,
         "output_size": 512,
-        "visual_dialogue_projection" : 512
+        "visual_dialogue_projection" : 0
+    },
+
+    "scoring_object" :
+    {
+      "use_scoring_mlp": false,
+      "scoring_mlp_hidden": 0,
+      "activation":"relu"
     },
 
 

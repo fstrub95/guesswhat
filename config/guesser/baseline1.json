@@ -1,5 +1,5 @@
 {
-  "name" : "Film_base_with_gru",
+  "name" : "Baseline without img no proj bigger word emb, clip val 5",
   "model": {
 
     "object":
@@ -9,13 +9,13 @@
       "spat_dim": 8,
 
       "obj_emb_hidden": 512,
-      "obj_emb_dim" : 512
+      "obj_emb_dim" : 1024
     },
 
     "dialogue":
     {
-      "reinject_for_fusion": true,
-      "word_embedding_dim" : 300,
+      "reinject_for_fusion":true,
+      "word_embedding_dim" : 512,
       "glove" : false,
       "rnn_state_size": 1024,
       "bidirectional" : true,
@@ -24,15 +24,15 @@
     },
 
     "fusion": {
-        "mode" : "dot",
-        "projection_size": 1024,
-        "output_size": 512,
-        "visual_dialogue_projection" : 512
+      "mode" : "none",
+      "projection_size": 1024,
+      "output_size": 512,
+      "visual_dialogue_projection" : 0
     },
 
 
     "image": {
-      "use_image" : true,
+      "use_image" : false,
       "image_input": "conv",
       "dim": [14,14,1024],
       "normalize": false,

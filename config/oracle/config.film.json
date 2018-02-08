@@ -14,7 +14,7 @@
     "question": {
       "word_embedding_dim": 200,
       "rnn_state_size": 1048,
-      "glove" : false,
+      "glove" : true,
       "bidirectional" : true,
       "layer_norm" : true,
       "max_pool" : false

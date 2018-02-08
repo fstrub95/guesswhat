@@ -5,6 +5,7 @@ from generic.tf_utils.abstract_network import AbstractNetwork
 from neural_toolbox import rnn
 from generic.tf_factory.fusion_factory import get_fusion_mechanism
 
+
 from generic.tf_factory.image_factory import get_image_features
 from neural_toolbox.film_stack import FiLM_Stack
 
@@ -62,9 +63,12 @@ class GuesserNetwork(AbstractNetwork):
             #####################
             #   DIALOGUE
             #####################
-
+            use_glove = config["dialogue"]['glove']
             self._dialogue = tf.placeholder(tf.int32, [batch_size, None], name='dialogue')
             self._seq_length_dialogue = tf.placeholder(tf.int32, [batch_size], name='seq_length_dialogue')
+
+            if use_glove : self._glove = tf.placeholder(tf.float32, [None, None, 300], name="glove")
+
 
             with tf.variable_scope('dialogue_embedding'):
 
@@ -75,20 +79,27 @@ class GuesserNetwork(AbstractNetwork):
                     scope="input_word_embedding",
                     reuse=reuse)
 
-                if config["dialogue"]['glove']:
-                    self._glove = tf.placeholder(tf.float32, [None, None, 300], name="glove")
+                if use_glove:
                     word_emb = tf.concat([word_emb, self._glove], axis=2)
 
                 word_emb = tf.nn.dropout(word_emb, dropout_keep)
 
-                _, self.dialogue_embedding = rnn.gru_factory(
-                    inputs=word_emb,
-                    seq_length=self._seq_length_dialogue,
-                    num_hidden=config["dialogue"]["rnn_state_size"],
-                    bidirectional=config["dialogue"]["bidirectional"],
-                    max_pool=config["dialogue"]["max_pool"],
-                    layer_norm=config["dialogue"]["layer_norm"],
-                    reuse=reuse)
+                # If specified, use a lstm, otherwise default behavior is GRU now
+                if config["dialogue"]["use_lstm"] :
+                    _, self.dialogue_embedding = rnn.variable_length_LSTM(word_emb,
+                                                                          num_hidden=config["dialogue"]['rnn_state_size'],
+                                                                          seq_length=self._seq_length_dialogue,
+                                                                          dropout_keep_prob=dropout_keep)
+
+                else:
+                    _, self.dialogue_embedding = rnn.gru_factory(
+                        inputs=word_emb,
+                        seq_length=self._seq_length_dialogue,
+                        num_hidden=config["dialogue"]["rnn_state_size"],
+                        bidirectional=config["dialogue"]["bidirectional"],
+                        max_pool=config["dialogue"]["max_pool"],
+                        layer_norm=config["dialogue"]["layer_norm"],
+                        reuse=reuse)
 
                 self.dialogue_embedding = tf.nn.dropout(self.dialogue_embedding, dropout_keep)
 
@@ -131,22 +142,28 @@ class GuesserNetwork(AbstractNetwork):
                 self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
 
             else:
-                assert config['fusion']['mode'] == "none", "If you don't want to use image, set fusion to None"
+                assert config['fusion']['mode'] == "none", "If you don't want to use image, set fusion to none"
                 self.image_embedding = None
 
             #####################
             #   FUSION MECHANISM
             #####################
 
+            if config['dialogue']['reinject_for_fusion']:
+                dialog_to_fuse = self.dialogue_embedding
+            else:
+                assert config['fusion']['mode'] == "none", "If you don't want to reinject dialog, set fusion to none"
+                dialog_to_fuse = None
+
+
             with tf.variable_scope('fusion'):
                 self.visual_dialogue_embedding, _ = get_fusion_mechanism(input1=self.image_embedding,
-                                                                      input2=self.dialogue_embedding,
+                                                                      input2=dialog_to_fuse,
                                                                       config=config["fusion"],
                                                                       dropout_keep=dropout_keep,
                                                                       reuse=reuse)
 
                 # Note: do not apply dropout here (special case because of scalar product)
-
 
 
             if config["fusion"]["visual_dialogue_projection"] > 0:
@@ -170,7 +187,30 @@ class GuesserNetwork(AbstractNetwork):
                 self.object_dialogue_matching = self.visual_dialogue_embedding * self.object_embedding
 
                 self.object_dialogue_matching = tf.nn.dropout(self.object_dialogue_matching, keep_prob=dropout_keep)
-                self.scores = tf.reduce_sum(self.object_dialogue_matching, axis=2)
+
+                self.scores = self.object_dialogue_matching
+
+                # Instead of doing a reduce sum, you can learn the score using a small MLP
+                if config['scoring_object']['use_scoring_mlp']:
+
+                    size_hidden_scoring_mlp = config['scoring_object']['scoring_mlp_hidden']
+                    activation = eval("tf.nn.{}".format(config["scoring_object"]['activation']))
+
+                    if size_hidden_scoring_mlp > 0:
+                        self.scores = tfc_layers.fully_connected(self.scores,
+                                                                 num_outputs=size_hidden_scoring_mlp,
+                                                                 activation_fn=activation,
+                                                                 scope='scoring_object_hidden_mlp')
+
+                    self.scores = tfc_layers.fully_connected(self.scores,
+                                                             num_outputs=1,
+                                                             activation_fn=activation,
+                                                             scope='scoring_object_output_mlp')
+
+                    self.scores = tf.squeeze(self.scores, axis=2)
+
+                else:
+                    self.scores = tf.reduce_sum(self.scores, axis=2)
 
             #####################
             #   OBJECT MASKING

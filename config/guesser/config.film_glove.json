@@ -1,5 +1,5 @@
 {
-  "name" : "Film_base_with_gru",
+  "name" : "Film base with glove embedding added",
   "model": {
 
     "object":
@@ -14,9 +14,8 @@
 
     "dialogue":
     {
-      "reinject_for_fusion": true,
       "word_embedding_dim" : 300,
-      "glove" : false,
+      "glove" : true,
       "rnn_state_size": 1024,
       "bidirectional" : true,
       "max_pool" : false,

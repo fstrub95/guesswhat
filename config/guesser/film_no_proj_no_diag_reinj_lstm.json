@@ -1,5 +1,5 @@
 {
-  "name" : "Film_base_with_gru",
+  "name" : "Film no projection after fusion, dialog is NOT reinjected, lstm version",
   "model": {
 
     "object":
@@ -9,7 +9,7 @@
       "spat_dim": 8,
 
       "obj_emb_hidden": 512,
-      "obj_emb_dim" : 512
+      "obj_emb_dim" : 1024
     },
 
     "dialogue":
@@ -18,7 +18,8 @@
       "word_embedding_dim" : 300,
       "glove" : false,
       "rnn_state_size": 1024,
-      "bidirectional" : true,
+      "use_lstm": true,
+      "bidirectional" : false,
       "max_pool" : false,
       "layer_norm" : true
     },
@@ -27,7 +28,14 @@
         "mode" : "dot",
         "projection_size": 1024,
         "output_size": 512,
-        "visual_dialogue_projection" : 512
+        "visual_dialogue_projection" : 0
+    },
+
+    "scoring_object" :
+    {
+      "use_scoring_mlp": false,
+      "scoring_mlp_hidden": 0,
+      "activation":"relu"
     },
 
 
