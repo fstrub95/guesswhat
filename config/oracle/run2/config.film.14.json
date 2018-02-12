@@ -1,10 +1,10 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + feedback3 (grad+no_shared)",
+  "name" : "FiLM (no cell): classif[+question+obj], FiLM[+question-obj] +question -attention",
 
   "model": {
 
     "type" : "film",
-    "split_question" : false,
+    "split_question" : true,
 
     "inputs": {
       "crop": true,
@@ -14,7 +14,7 @@
     "question": {
       "word_embedding_dim": 200,
       "rnn_state_size": 1048,
-      "glove" : true,
+      "glove" : false,
       "bidirectional" : true,
       "layer_norm" : false,
       "max_pool" : false
@@ -33,9 +33,9 @@
     {
       "inputs" :
       {
-       "question": false,
-       "category": false,
-       "spatial": false
+       "question": true,
+       "category": true,
+       "spatial": true
       },
 
       "no_mlp_units": 512
@@ -43,18 +43,13 @@
 
     "film_input":
     {
-      "category": true,
-      "spatial": true,
+      "category": false,
+      "spatial": false,
       "mask": false,
 
       "reading_unit": {
-        "reading_unit_type" : "no_mem",
-        "stop_img_gradient" : false,
-        "attention_units" : 0,
-        "shared_attention": false,
-        "feedback_loop" : true,
-        "gating" : "relu",
-        "fuse_mode" : "dot"
+        "reading_unit_type" : "only_question",
+        "stop_img_gradient" : true
       }
 
     },
@@ -108,7 +103,7 @@
         "no_mlp_units": 1024,
 
         "attention" : {
-          "mode": "glimpse",
+          "mode": "mean",
           "no_attention_mlp" : 256,
           "no_glimpses" : 1
         }

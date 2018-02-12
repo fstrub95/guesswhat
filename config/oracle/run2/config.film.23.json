@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + feedback3 (grad+no_shared)",
+  "name" : "FiLM (cell): -classif, +FiLM, +attention + no_mem (grad+no_shared)",
 
   "model": {
 
@@ -14,7 +14,7 @@
     "question": {
       "word_embedding_dim": 200,
       "rnn_state_size": 1048,
-      "glove" : true,
+      "glove" : false,
       "bidirectional" : true,
       "layer_norm" : false,
       "max_pool" : false

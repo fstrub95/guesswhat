@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + feedback3 (grad+no_shared)",
+  "name" : "FiLM (no cell): classif[-question-obj], FiLM[+question+obj] +dialogue +attention",
 
   "model": {
 
@@ -14,7 +14,7 @@
     "question": {
       "word_embedding_dim": 200,
       "rnn_state_size": 1048,
-      "glove" : true,
+      "glove" : false,
       "bidirectional" : true,
       "layer_norm" : false,
       "max_pool" : false
@@ -48,13 +48,8 @@
       "mask": false,
 
       "reading_unit": {
-        "reading_unit_type" : "no_mem",
-        "stop_img_gradient" : false,
-        "attention_units" : 0,
-        "shared_attention": false,
-        "feedback_loop" : true,
-        "gating" : "relu",
-        "fuse_mode" : "dot"
+        "reading_unit_type" : "only_question",
+        "stop_img_gradient" : true
       }
 
     },
