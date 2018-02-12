@@ -1,5 +1,5 @@
 {
-  "name" : "Baseline lstm 1024 lstm one side + Drop out (LESS DROP)",
+  "name" : "Small head 1",
   "model": {
 
     "object":
@@ -9,16 +9,16 @@
       "spat_dim": 8,
 
       "obj_emb_hidden": 512,
-      "obj_emb_dim" : 1024
+      "obj_emb_dim" : 128
     },
 
     "dialogue":
     {
-      "reinject_for_fusion":true,
+      "reinject_for_fusion": false,
       "word_embedding_dim" : 300,
       "glove" : false,
       "rnn_state_size": 1024,
-      "use_lstm":true,
+      "use_lstm": true,
       "bidirectional" : false,
       "max_pool" : false,
       "layer_norm" : true
@@ -40,7 +40,7 @@
 
 
     "image": {
-      "use_image" : false,
+      "use_image" : true,
       "image_input": "conv",
       "dim": [14,14,1024],
       "normalize": false,
@@ -65,7 +65,7 @@
 
         "head": {
           "spatial_location": true,
-          "conv_out": 1024,
+          "conv_out": 128,
           "conv_kernel": [1,1],
 
           "attention": {
@@ -80,9 +80,10 @@
     "regularizer":
     {
       "dropout_keep_prob": 0.5,
-      "dropout_list" : {},
-      "batchnorm_list": {}
+      "dropout_list" : ["image_embedding_reg"],
+      "batchnorm_list": ["scalar_product_reg"]
     }
+
 
   },
 
@@ -91,7 +92,7 @@
     "learning_rate": 1e-4,
     "batch_size": 64,
     "clip_val": 10,
-    "weight_decay": 5e-6,
+    "weight_decay": 5e-5,
     "weight_decay_add": ["film_stack"],
     "weight_decay_remove": ["feedback_loop", "FiLM_layer", "pooling"]
   },

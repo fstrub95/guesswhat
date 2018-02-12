@@ -1,5 +1,5 @@
 {
-  "name" : "Film no projection after fusion and no dialog is reinjected, smaller conv on top (bad name on cedar)",
+  "name" : "Film GRU no proj after fusion and no dialog is reinjected, smaller conv on top (LESS DROP)",
   "model": {
 
     "object":
@@ -18,6 +18,7 @@
       "word_embedding_dim" : 300,
       "glove" : false,
       "rnn_state_size": 1024,
+      "use_lstm": false,
       "bidirectional" : true,
       "max_pool" : false,
       "layer_norm" : true

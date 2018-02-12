@@ -8,7 +8,7 @@ from generic.tf_factory.fusion_factory import get_fusion_mechanism
 
 from generic.tf_factory.image_factory import get_image_features
 from neural_toolbox.film_stack import FiLM_Stack
-
+from neural_toolbox import regularizer_toolbox
 
 class GuesserNetwork(AbstractNetwork):
     def __init__(self, config, no_words, device='', reuse=False):
@@ -17,14 +17,15 @@ class GuesserNetwork(AbstractNetwork):
         with tf.variable_scope(self.scope_name, reuse=reuse):
 
             batch_size = None
+
             self._is_training = tf.placeholder(tf.bool, name="is_training")
 
-            dropout_keep_scalar = float(config.get("dropout_keep_prob", 1.0))
+            dropout_keep_scalar = float(config['regularizer'].get("dropout_keep_prob", 1.0))
             dropout_keep = tf.cond(self._is_training,
-                                   lambda: tf.constant(dropout_keep_scalar),
-                                   lambda: tf.constant(1.0))
+                                        lambda: tf.constant(dropout_keep_scalar),
+                                        lambda: tf.constant(1.0))
 
-
+            self.regularizer = regularizer_toolbox.Regularizer(config['regularizer'], self._is_training, dropout_keep, reuse)
 
             #####################
             #   OBJECTS
@@ -37,6 +38,7 @@ class GuesserNetwork(AbstractNetwork):
 
             # Embedding object categories
             with tf.variable_scope('object_embedding'):
+
 
                     self.object_cats_emb = tfc_layers.embed_sequence(
                         ids=self._obj_cats,
@@ -53,7 +55,10 @@ class GuesserNetwork(AbstractNetwork):
                                                     num_outputs=config["object"]['obj_emb_hidden'],
                                                     activation_fn=tf.nn.relu,
                                                     scope='obj_mlp_hidden_layer')
-                    object_emb_hidden = tf.nn.dropout(object_emb_hidden, dropout_keep_scalar)
+
+                    # object_emb_hidden = tf.nn.dropout(object_emb_hidden, dropout_keep)
+                    with tf.variable_scope('object_embedding_reg'):
+                        object_emb_hidden = self.regularizer.apply(object_emb_hidden)
 
                     self.object_embedding = tfc_layers.fully_connected(object_emb_hidden,
                                                     num_outputs=config["object"]['obj_emb_dim'],
@@ -82,7 +87,9 @@ class GuesserNetwork(AbstractNetwork):
                 if use_glove:
                     word_emb = tf.concat([word_emb, self._glove], axis=2)
 
-                word_emb = tf.nn.dropout(word_emb, dropout_keep)
+                # word_emb = tf.nn.dropout(word_emb, dropout_keep)
+                with tf.variable_scope('word_embedding_reg'):
+                    word_emb = self.regularizer.apply(word_emb)
 
                 # If specified, use a lstm, otherwise default behavior is GRU now
                 if config["dialogue"]["use_lstm"] :
@@ -101,7 +108,9 @@ class GuesserNetwork(AbstractNetwork):
                         layer_norm=config["dialogue"]["layer_norm"],
                         reuse=reuse)
 
-                self.dialogue_embedding = tf.nn.dropout(self.dialogue_embedding, dropout_keep)
+                #self.dialogue_embedding = tf.nn.dropout(self.dialogue_embedding, dropout_keep)
+                with tf.variable_scope('dialogue_reg'):
+                    self.dialogue_embedding = self.regularizer.apply(self.dialogue_embedding)
 
             #####################
             #   IMAGES
@@ -139,7 +148,9 @@ class GuesserNetwork(AbstractNetwork):
 
                         self.image_embedding = self.film_img_stack.get()
 
-                self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
+                #self.image_embedding = tf.nn.dropout(self.image_embedding, dropout_keep)
+                with tf.variable_scope("image_embedding_reg"):
+                    self.image_embedding = self.regularizer(self.image_embedding)
 
             else:
                 assert config['fusion']['mode'] == "none", "If you don't want to use image, set fusion to none"
@@ -186,7 +197,11 @@ class GuesserNetwork(AbstractNetwork):
 
                 self.object_dialogue_matching = self.visual_dialogue_embedding * self.object_embedding
 
-                self.object_dialogue_matching = tf.nn.dropout(self.object_dialogue_matching, keep_prob=dropout_keep)
+                #self.object_dialogue_matching = tf.nn.dropout(self.object_dialogue_matching, keep_prob=dropout_keep)
+                # self.object_dialogue_matching = tfc_layers.batch_norm(self.object_dialogue_matching,
+                #                                                       is_training=self._is_training, reuse=reuse)
+                with tf.variable_scope("scalar_product_reg"):
+                    self.object_dialogue_matching = self.regularizer.apply(self.object_dialogue_matching)
 
                 self.scores = self.object_dialogue_matching
 
