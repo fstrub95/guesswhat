@@ -1,5 +1,5 @@
 {
-  "name" : "Film no projection after fusion, but dialog is reinjected lstm version",
+  "name" : "Film no projection after fusion, but dialog is reinjected lstm version (LESS DROP)",
   "model": {
 
     "object":

@@ -72,13 +72,18 @@ class LSTMBatchifier(AbstractBatchifier):
             # Object embedding
             obj_spats, obj_cats = [], []
             for index, obj in enumerate(game.objects):
-                spatial = get_spatial_feat(obj.bbox, game.image.width, game.image.height)
+                bbox = obj.bbox
+                spatial = get_spatial_feat(bbox, game.image.width, game.image.height)
                 category = obj.category_id
+
+                # 2 points :         upper right              lower left
+                bbox_coord = ((bbox.x_left,bbox.y_upper),(bbox.x_right,bbox.y_lower))
 
                 if obj.id == game.object_id:
                     batch['targets_category'].append(category)
                     batch['targets_spatial'].append(spatial)
                     batch['targets_index'].append(index)
+                    batch['targets_bbox'].append(bbox_coord)
 
                 obj_spats.append(spatial)
                 obj_cats.append(category)

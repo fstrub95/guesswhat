@@ -1,5 +1,5 @@
 {
-  "name" : "Film no projection, no diag reinjected, smaller conv, scoring on top, lstm simple",
+  "name" : "Film no projection, no diag reinjected, smaller conv, scoring on top, lstm simple (LESS DROP)",
   "model": {
 
     "object":

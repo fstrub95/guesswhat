@@ -1,5 +1,5 @@
 {
-  "name" : "Baseline lstm 1024 lstm one side + Drop out (LESS DROP)",
+  "name" : "REG : Baseline",
   "model": {
 
     "object":
@@ -80,7 +80,7 @@
     "regularizer":
     {
       "dropout_keep_prob": 0.5,
-      "dropout_list" : {},
+      "dropout_list" : ["dialog_reg", "object_embedding_reg", "scalar_product_reg"],
       "batchnorm_list": {}
     }
 
