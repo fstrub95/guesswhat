@@ -49,7 +49,7 @@
 
       "reading_unit": {
         "reading_unit_type" : "basic",
-        "sum_memory" : false,
+        "stop_img_gradient" : true,
         "attention_units" : 0,
         "shared_attention": true,
         "feedback_loop" : false,
@@ -103,8 +103,9 @@
       "head" : {
         "spatial_location" : true,
         "mask" : true,
-        "conv_out": 512,
+        "conv_out": 1024,
         "conv_kernel": [1,1],
+        "no_mlp_units": 1024,
 
         "attention" : {
           "mode": "glimpse",

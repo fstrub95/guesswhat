@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + no feedback",
+  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + feedback1 (grad)",
 
   "model": {
 
@@ -52,7 +52,7 @@
         "sum_memory" : false,
         "attention_units" : 0,
         "shared_attention": true,
-        "feedback_loop" : false,
+        "feedback_loop" : true,
         "gating" : "relu",
         "fuse_mode" : "dot"
       }

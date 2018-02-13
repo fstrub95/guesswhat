@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + no feedback",
+  "name" : "FiLM crop (cell): -classif, +FiLM, +max + question_only",
 
   "model": {
 
@@ -8,12 +8,12 @@
 
     "inputs": {
       "crop": true,
-      "image": true
+      "image": false
     },
 
     "question": {
       "word_embedding_dim": 200,
-      "rnn_state_size": 800,
+      "rnn_state_size": 1024,
       "glove" : false,
       "bidirectional" : true,
       "layer_norm" : true,
@@ -38,7 +38,7 @@
        "spatial": false
       },
 
-      "no_mlp_units": 512
+      "no_mlp_units": 256
     },
 
     "film_input":
@@ -48,11 +48,11 @@
       "mask": false,
 
       "reading_unit": {
-        "reading_unit_type" : "basic",
-        "sum_memory" : false,
+        "reading_unit_type" : "only_question",
+        "stop_img_gradient" : false,
         "attention_units" : 0,
         "shared_attention": true,
-        "feedback_loop" : false,
+        "feedback_loop" : true,
         "gating" : "relu",
         "fuse_mode" : "dot"
       }
@@ -103,12 +103,12 @@
       "head" : {
         "spatial_location" : true,
         "mask" : true,
-        "conv_out": 512,
+        "conv_out": 256,
         "conv_kernel": [1,1],
 
         "attention" : {
-          "mode": "glimpse",
-          "no_attention_mlp" : 256,
+          "mode": "max",
+          "no_attention_mlp" : 128,
           "no_glimpses" : 1
         }
       }

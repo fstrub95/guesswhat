@@ -141,8 +141,7 @@ class FiLM_Oracle(ResnetModel):
                                                                 config=config["film_input"]["reading_unit"],
                                                                 reuse=reuse)
 
-                        stop_gradient = config["film_input"]["reading_unit"]["stop_img_gradient"]
-                        film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit, stop_gradient=stop_gradient)
+                        film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit)
 
                     with tf.variable_scope("image_film_stack", reuse=reuse):
 
@@ -217,8 +216,7 @@ class FiLM_Oracle(ResnetModel):
                                                                     config=config["film_input"]["reading_unit"],
                                                                     reuse=reuse)
 
-                            stop_gradient = config["film_input"]["reading_unit"]["stop_img_gradient"]
-                            film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit, stop_gradient=stop_gradient)
+                            film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit)
 
                     with tf.variable_scope("crop_film_stack", reuse=reuse):
 

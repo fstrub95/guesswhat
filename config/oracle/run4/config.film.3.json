@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + no feedback",
+  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + no feedback + max",
 
   "model": {
 
@@ -17,7 +17,7 @@
       "glove" : false,
       "bidirectional" : true,
       "layer_norm" : true,
-      "max_pool" : false
+      "max_pool" : true
     },
 
     "category": {
