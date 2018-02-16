@@ -144,7 +144,7 @@ class GuesserNetwork(AbstractNetwork):
                                                                 states=self.rnn_states,
                                                                 seq_length=self._seq_length,
                                                                 keep_dropout=dropout_keep,
-                                                                config=config["film_input"]["reading_unit"],
+                                                                config=config["reading_unit"],
                                                                 reuse=reuse)
 
                         film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit, stop_gradient=False)
