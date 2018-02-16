@@ -9,6 +9,8 @@ from generic.tf_factory.fusion_factory import get_fusion_mechanism
 from generic.tf_factory.image_factory import get_image_features
 from neural_toolbox.film_stack import FiLM_Stack
 from neural_toolbox import regularizer_toolbox
+from neural_toolbox.reading_unit import create_reading_unit, create_film_layer_with_reading_unit
+
 
 class GuesserNetwork(AbstractNetwork):
     def __init__(self, config, no_words, device='', reuse=False):
@@ -135,14 +137,27 @@ class GuesserNetwork(AbstractNetwork):
                     self.image_embedding = self.image_out
 
                 else:
+
+                    with tf.variable_scope("image_reading_cell"):
+
+                        self.reading_unit = create_reading_unit(last_state=self.last_rnn_states,
+                                                                states=self.rnn_states,
+                                                                seq_length=self._seq_length,
+                                                                keep_dropout=dropout_keep,
+                                                                config=config["film_input"]["reading_unit"],
+                                                                reuse=reuse)
+
+                        film_layer_fct = create_film_layer_with_reading_unit(self.reading_unit, stop_gradient=False)
+
                     with tf.variable_scope("image_film_stack", reuse=reuse):
 
 
                         self.film_img_stack = FiLM_Stack(image=self.image_out,
-                                                         film_input=self.dialogue_embedding,
+                                                         film_input=[], # Must be empty if memory cell
                                                          attention_input=self.dialogue_embedding,
                                                          is_training=self._is_training,
                                                          dropout_keep=dropout_keep,
+                                                         film_layer_fct=film_layer_fct,
                                                          config=config["image"]["film_block"],
                                                          reuse=reuse)
 
