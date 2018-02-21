@@ -18,7 +18,6 @@ from generic.data_provider.nlp_utils import GloveEmbeddings
 from guesswhat.data_provider.guesswhat_dataset import Dataset
 from guesswhat.data_provider.questioner_batchifier import LSTMBatchifier
 from guesswhat.data_provider.guesswhat_tokenizer import GWTokenizer
-from guesswhat.models.guesser.guesser_baseline import GuesserNetwork
 
 
 if __name__ == '__main__':
@@ -40,10 +39,23 @@ if __name__ == '__main__':
     parser.add_argument("-gpu_ratio", type=float, default=1., help="How many GPU ram is required? (ratio)")
     parser.add_argument("-no_thread", type=int, default=1, help="No thread to load batch")
     parser.add_argument("-no_games_to_load", type=int, help="No games to use during training Default : all")
+    parser.add_argument("-pointing_task", type=bool, default=False, help="If specified, the task is to bbox the object")
 
     args = parser.parse_args()
     config, exp_identifier, save_path = load_config(args.config, args.exp_dir, args)
     logger = logging.getLogger()
+
+    ###############################
+    #  TASK SELECTOR : Object in list or Pointing
+    #############################
+
+    if args.pointing_task:
+        print("===== POINTING TASK ======")
+        from guesswhat.models.guesser.guesser_pointing import GuesserNetwork
+    else:
+        print("===== FIND OBJECT IN LIST TASK=====")
+        from guesswhat.models.guesser.guesser_baseline import GuesserNetwork
+
 
     ###############################
     #  LOAD DATA

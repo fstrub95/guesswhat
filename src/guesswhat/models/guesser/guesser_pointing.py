@@ -9,6 +9,7 @@ from generic.tf_factory.fusion_factory import get_fusion_mechanism
 from generic.tf_factory.image_factory import get_image_features
 from neural_toolbox.film_stack import FiLM_Stack
 from neural_toolbox import regularizer_toolbox
+from neural_toolbox.utils import iou_accuracy
 
 class GuesserNetwork(AbstractNetwork):
     def __init__(self, config, no_words, device='', reuse=False):
@@ -27,43 +28,6 @@ class GuesserNetwork(AbstractNetwork):
 
             self.regularizer = regularizer_toolbox.Regularizer(config['regularizer'], self._is_training, dropout_keep, reuse)
 
-            #####################
-            #   OBJECTS
-            #####################
-
-            #self._obj_mask = tf.placeholder(tf.float32, [batch_size, None], name='obj_mask')
-            self._num_object = tf.placeholder(tf.int32, [batch_size], name='obj_seq_length')
-            self._obj_cats = tf.placeholder(tf.int32, [batch_size, None], name='obj_cats')
-            self._obj_spats = tf.placeholder(tf.float32, [batch_size, None, config["object"]['spat_dim']], name='obj_spats')
-
-            # Embedding object categories
-            with tf.variable_scope('object_embedding'):
-
-
-                    self.object_cats_emb = tfc_layers.embed_sequence(
-                        ids=self._obj_cats,
-                        vocab_size=config["object"]['no_categories'] + 1,
-                        embed_dim=config["object"]['cat_emb_dim'],
-                        scope="cat_embedding",
-                        reuse=reuse)
-
-                    # Adding spatial coordinate (should be optionnal)
-                    self.objects_input = tf.concat([self.object_cats_emb, self._obj_spats], axis=2)
-
-
-                    object_emb_hidden = tfc_layers.fully_connected(self.objects_input,
-                                                    num_outputs=config["object"]['obj_emb_hidden'],
-                                                    activation_fn=tf.nn.relu,
-                                                    scope='obj_mlp_hidden_layer')
-
-                    # object_emb_hidden = tf.nn.dropout(object_emb_hidden, dropout_keep)
-                    with tf.variable_scope('object_embedding_reg'):
-                        object_emb_hidden = self.regularizer.apply(object_emb_hidden)
-
-                    self.object_embedding = tfc_layers.fully_connected(object_emb_hidden,
-                                                    num_outputs=config["object"]['obj_emb_dim'],
-                                                    activation_fn=tf.nn.relu,
-                                                    scope='obj_mlp_out')
 
             #####################
             #   DIALOGUE
@@ -73,7 +37,6 @@ class GuesserNetwork(AbstractNetwork):
             self._seq_length_dialogue = tf.placeholder(tf.int32, [batch_size], name='seq_length_dialogue')
 
             if use_glove : self._glove = tf.placeholder(tf.float32, [None, None, 300], name="glove")
-
 
             with tf.variable_scope('dialogue_embedding'):
 
@@ -137,7 +100,6 @@ class GuesserNetwork(AbstractNetwork):
                 else:
                     with tf.variable_scope("image_film_stack", reuse=reuse):
 
-
                         self.film_img_stack = FiLM_Stack(image=self.image_out,
                                                          film_input=self.dialogue_embedding,
                                                          attention_input=self.dialogue_embedding,
@@ -174,93 +136,56 @@ class GuesserNetwork(AbstractNetwork):
                                                                       dropout_keep=dropout_keep,
                                                                       reuse=reuse)
 
-                # Note: do not apply dropout here (special case because of scalar product)
-
-
-            if config["fusion"]["visual_dialogue_projection"] > 0:
-
-                self.visual_dialogue_embedding = tfc_layers.fully_connected(self.visual_dialogue_embedding,
-                                           num_outputs=config["fusion"]["visual_dialogue_projection"],
-                                           activation_fn=tf.nn.relu,
-                                           scope='visual_dialogue_projection')
-
+                with tf.variable_scope("fusion_reg"):
+                    self.visual_dialogue_embedding = self.regularizer.apply(self.visual_dialogue_embedding)
 
 
             #####################
-            #   SCALAR PRODUCT
+            #   MLP COORD
             #####################
 
-            with tf.variable_scope('scalar_product', reuse=reuse):
-
-                # Compute vector product product
-                self.visual_dialogue_embedding = tf.expand_dims(self.visual_dialogue_embedding, axis=1)
-
-                self.object_dialogue_matching = self.visual_dialogue_embedding * self.object_embedding
-
-                #self.object_dialogue_matching = tf.nn.dropout(self.object_dialogue_matching, keep_prob=dropout_keep)
-                # self.object_dialogue_matching = tfc_layers.batch_norm(self.object_dialogue_matching,
-                #                                                       is_training=self._is_training, reuse=reuse)
-                with tf.variable_scope("scalar_product_reg"):
-                    self.object_dialogue_matching = self.regularizer.apply(self.object_dialogue_matching)
-
-                self.scores = self.object_dialogue_matching
-
-                # Instead of doing a reduce sum, you can learn the score using a small MLP
-                if config['scoring_object']['use_scoring_mlp']:
-
-                    size_hidden_scoring_mlp = config['scoring_object']['scoring_mlp_hidden']
-                    activation = eval("tf.nn.{}".format(config["scoring_object"]['activation']))
-
-                    if size_hidden_scoring_mlp > 0:
-                        self.scores = tfc_layers.fully_connected(self.scores,
-                                                                 num_outputs=size_hidden_scoring_mlp,
-                                                                 activation_fn=activation,
-                                                                 scope='scoring_object_hidden_mlp')
-
-                    self.scores = tfc_layers.fully_connected(self.scores,
-                                                             num_outputs=1,
-                                                             activation_fn=activation,
-                                                             scope='scoring_object_output_mlp')
-
-                    self.scores = tf.squeeze(self.scores, axis=2)
-
-                else:
-                    self.scores = tf.reduce_sum(self.scores, axis=2)
+            size_hidden_mlp_coord = config['mlp_coord']['mlp_coord_hidden']
+            self.coord_temp = self.visual_dialogue_embedding
 
 
+            if size_hidden_mlp_coord > 0:
 
-            #####################
-            #   OBJECT MASKING
-            #####################
+                with tf.variable_scope("mlp_coord_hidden"):
+                    self.coord_temp = self.regularizer(self.coord_temp)
 
-            with tf.variable_scope('object_mask', reuse=reuse):
+                self.coord_temp = tfc_layers.fully_connected(self.coord_temp,
+                                                             num_outputs=size_hidden_mlp_coord,
+                                                             activation_fn=tf.nn.relu,
+                                                             scope='mlp_coord_hidden')
 
-                object_mask = tf.sequence_mask(self._num_object)
-                score_mask_values = float("-inf") * tf.ones_like(self.scores)
+            with tf.variable_scope("mlp_coord_out"):
+                self.coord_temp = self.regularizer(self.coord_temp)
 
-                self.score_masked = tf.where(object_mask, self.scores, score_mask_values)
+
+            self.coord_out = tfc_layers.fully_connected(self.coord_temp,
+                                                     num_outputs=4,
+                                                     activation_fn=None,
+                                                     scope='mlp_coord_output')
 
             #####################
             #   LOSS
             #####################
 
             # Targets
-            self._targets = tf.placeholder(tf.int32, [batch_size], name="targets_index")
+            self._targets = tf.placeholder(tf.float32, [batch_size, 4], name="targets_bbox")
 
-            self.loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._targets, logits=self.score_masked)
+            self.loss = tf.losses.mean_squared_error(labels=self._targets, predictions=self.coord_out)
             self.loss = tf.reduce_mean(self.loss)
 
-            self.selected_object = tf.argmax(self.score_masked, axis=1)
-
-            with tf.variable_scope('accuracy'):
-                self.accuracy = tf.equal(self.selected_object, tf.cast(self._targets,  tf.int64))
-                self.accuracy = tf.reduce_mean(tf.cast(self.accuracy, tf.float32))
+            with tf.variable_scope('inter_over_union'):
+                self.inter_over_union = iou_accuracy(self._targets, self.coord_out)
+                self.inter_over_union = tf.reduce_mean(self.inter_over_union)
 
     def get_loss(self):
         return self.loss
 
     def get_accuracy(self):
-        return self.accuracy
+        return self.inter_over_union
 
 
 

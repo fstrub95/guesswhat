@@ -1,0 +1,102 @@
+{
+  "name" : "REG film13",
+  "model": {
+
+    "object":
+    {
+      "cat_emb_dim": 256,
+      "no_categories": 90,
+      "spat_dim": 8,
+
+      "obj_emb_hidden": 512,
+      "obj_emb_dim" : 900
+    },
+
+    "dialogue":
+    {
+      "reinject_for_fusion": true,
+      "word_embedding_dim" : 300,
+      "glove" : false,
+      "rnn_state_size": 900,
+      "use_lstm": false,
+      "bidirectional" : true,
+      "max_pool" : false,
+      "layer_norm" : true
+    },
+
+    "fusion": {
+        "mode" : "dot",
+        "projection_size": 1024,
+        "output_size": 512,
+        "visual_dialogue_projection" : 0
+    },
+
+    "scoring_object" :
+    {
+      "use_scoring_mlp": false,
+      "scoring_mlp_hidden": 0,
+      "activation":"relu"
+    },
+
+
+    "image": {
+      "use_image" : true,
+      "image_input": "conv",
+      "dim": [14,14,1024],
+      "normalize": false,
+
+      "attention": {
+        "mode": "none"
+      },
+
+      "film_block": {
+        "stem": {
+          "spatial_location": true,
+          "conv_out": 256,
+          "conv_kernel": [3,3]
+        },
+
+        "resblock": {
+          "feature_size": [128,128,128,128],
+          "spatial_location": true,
+          "kernel1": [1,1],
+          "kernel2": [3,3]
+        },
+
+        "head": {
+          "spatial_location": true,
+          "conv_out": 900,
+          "conv_kernel": [1,1],
+
+          "attention": {
+            "mode": "mean",
+            "no_attention_mlp": 256,
+            "no_glimpses": 1
+          }
+        }
+      }
+    },
+
+    "regularizer":
+    {
+      "dropout_keep_prob": 0.5,
+      "dropout_list" : [],
+      "batchnorm_list": ["image_embedding_reg", "scalar_product_reg", "object_embedding_reg", "word_embedding_reg", "word_embedding_reg"]
+    }
+
+
+  },
+
+  "optimizer": {
+    "no_epoch": 20,
+    "learning_rate": 1e-4,
+    "batch_size": 64,
+    "clip_val": 10,
+    "weight_decay": 5e-5,
+    "weight_decay_add": ["film_stack"],
+    "weight_decay_remove": ["feedback_loop", "FiLM_layer", "pooling"]
+  },
+
+  "seed": -1
+
+}

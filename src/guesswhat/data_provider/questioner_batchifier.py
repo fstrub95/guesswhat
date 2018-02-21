@@ -3,7 +3,7 @@ import collections
 
 from generic.data_provider.batchifier import AbstractBatchifier
 
-from generic.data_provider.image_preprocessors import get_spatial_feat
+from generic.data_provider.image_preprocessors import get_spatial_feat, scale_bbox
 from generic.data_provider.nlp_utils import padder, padder_3d
 
 from itertools import chain
@@ -76,8 +76,8 @@ class LSTMBatchifier(AbstractBatchifier):
                 spatial = get_spatial_feat(bbox, game.image.width, game.image.height)
                 category = obj.category_id
 
-                # 2 points :         upper right              lower left
-                bbox_coord = ((bbox.x_left,bbox.y_upper),(bbox.x_right,bbox.y_lower))
+                #                    1 point                 width         height
+                bbox_coord = [bbox.x_left, bbox.y_upper, bbox.x_width, bbox.y_height]
 
                 if obj.id == game.object_id:
                     batch['targets_category'].append(category)
@@ -117,11 +117,9 @@ class LSTMBatchifier(AbstractBatchifier):
         batch['obj_cats'], obj_length = padder(batch['obj_cats'])
         batch['obj_seq_length'] = obj_length
 
-        # Compute the object mask
-        # max_objects = max(obj_length)
-        # batch['obj_mask'] = np.zeros((batch_size, max_objects), dtype=np.float32)
-        # for i in range(batch_size):
-        #     batch['obj_mask'][i, :obj_length[i]] = 1.0
+        # Normalize bbox object :
+        for i, bbox in enumerate(batch['targets_bbox']):
+            batch['targets_bbox'][i] = scale_bbox(bbox, game.image.width, game.image.height)
 
         if 'glove' in self.sources:
             # (?, 16, 300)   (batch, max num word, glove emb size)
