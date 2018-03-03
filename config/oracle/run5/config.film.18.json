@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(+att+feedback +feedback2+max)",
+  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(-att-feedback +sum)",
 
   "model": {
 
@@ -50,16 +50,16 @@
       "reading_unit": {
         "reading_unit_type" : "basic",
 
-        "use_attention" : true,
+        "use_attention" : false,
         "attention_units" : 0,
         "shared_attention" : true,
         "fuse_mode" : "dot",
 
-        "feedback_loop" : true,
-        "feedback_loop2" : true,
-        "img_pooling" : "max",
+        "feedback_loop" : false,
+        "feedback_loop2" : false,
+        "img_pooling" : "mean",
         "shared_projection" : false,
-        "sum_mem" : false
+        "sum_mem" : true
       }
 
     },

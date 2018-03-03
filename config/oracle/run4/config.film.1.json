@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): -classif, +FiLM, +attention + basic + no feedback",
+  "name" : "FiLM (cell): +FiLM, +attention + basic + no_attention + no_feedback",
 
   "model": {
 

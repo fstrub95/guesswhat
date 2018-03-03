@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM image (no cell): -classif, +FiLM, +glimpse + no_cell",
+  "name" : "FiLM crop/image (no cell): -classif, -FiLM, +glimpse",
 
   "model": {
 
@@ -7,7 +7,7 @@
     "split_question" : false,
 
     "inputs": {
-      "crop": false,
+      "crop": true,
       "image": true
     },
 
@@ -33,30 +33,12 @@
     {
       "inputs" :
       {
-       "question": false,
+       "question": true,
        "category": false,
        "spatial": false
       },
 
       "no_mlp_units": 512
-    },
-
-    "film_input":
-    {
-      "category": true,
-      "spatial": true,
-      "mask": false,
-
-      "reading_unit": {
-        "reading_unit_type" : "only_question",
-        "stop_img_gradient" : false,
-        "attention_units" : 0,
-        "shared_attention": true,
-        "feedback_loop" : false,
-        "gating" : "relu",
-        "fuse_mode" : "dot"
-      }
-
     },
 
 
@@ -66,7 +48,9 @@
       "normalize": false,
 
       "attention" : {
-        "mode": "none"
+        "mode": "glimpse",
+        "no_attention_mlp" : 256,
+        "no_glimpses" : 1
       }
 
     },
@@ -78,40 +62,11 @@
       "scale" : 1.1,
 
       "attention" : {
-        "mode": "none"
+        "mode": "glimpse",
+        "no_attention_mlp" : 256,
+        "no_glimpses" : 1
       }
 
-    },
-
-    "film_block":
-    {
-      "stem" : {
-        "spatial_location" : true,
-        "mask" : true,
-        "conv_out": 256,
-        "conv_kernel": [3,3]
-      },
-
-      "resblock" : {
-        "feature_size" : [128, 128, 128, 128],
-        "spatial_location" : true,
-        "mask" : true,
-        "kernel1" : [1,1],
-        "kernel2" : [3,3]
-      },
-
-      "head" : {
-        "spatial_location" : true,
-        "mask" : true,
-        "conv_out": 256,
-        "conv_kernel": [1,1],
-
-        "attention" : {
-          "mode": "glimpse",
-          "no_attention_mlp" : 256,
-          "no_glimpses" : 1
-        }
-      }
     }
 
   },

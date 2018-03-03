@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(+att+feedback +feedback2+max)",
+  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(+att-feedback +shared_att +shared_projection)",
 
   "model": {
 
@@ -55,10 +55,13 @@
         "shared_attention" : true,
         "fuse_mode" : "dot",
 
-        "feedback_loop" : true,
-        "feedback_loop2" : true,
-        "img_pooling" : "max",
-        "shared_projection" : false,
+        "feedback_loop" : false,
+        "feedback_loop2" : false,
+
+        "img_pooling" : "mean",
+
+        "shared_projection" : true,
+
         "sum_mem" : false
       }
 
@@ -128,7 +131,7 @@
     "clip_val": 10.0,
     "weight_decay": 5e-6,
     "weight_decay_add": ["film_stack"],
-    "weight_decay_remove": ["feedback_loop", "FiLM_layer" ,"pooling" ,"basic_reading_unit_att", "basic_reading_unit_proj"]
+    "weight_decay_remove": ["feedback_loop", "FiLM_layer" ,"basic_reading_unit_att", "basic_reading_unit_proj"]
   },
 
   "dropout_keep_prob" : 0.5,

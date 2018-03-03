@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(+att+feedback +feedback2+max)",
+  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(-att+feedback +shared_projection)",
 
   "model": {
 
@@ -50,15 +50,17 @@
       "reading_unit": {
         "reading_unit_type" : "basic",
 
-        "use_attention" : true,
+        "use_attention" : false,
         "attention_units" : 0,
-        "shared_attention" : true,
+        "shared_attention" : false,
         "fuse_mode" : "dot",
 
         "feedback_loop" : true,
-        "feedback_loop2" : true,
-        "img_pooling" : "max",
-        "shared_projection" : false,
+        "feedback_loop2" : false,
+        "img_pooling" : "mean",
+
+        "shared_projection" : true,
+
         "sum_mem" : false
       }
 

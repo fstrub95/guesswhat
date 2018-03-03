@@ -1,8 +1,6 @@
 {
-  "name" : "Guesser (no cell) : object (proj:256), FiLM (head:512 [3*3]), Pooling (conv:256), fusion (proj:256), score (sum), cell(none)",
+  "name" : "Guesser : object (-proj), FiLM (+head), fusion (-proj), score (sum), cell(none)",
   "model": {
-
-    "type" : "guesser2",
 
     "object":
     {
@@ -12,7 +10,7 @@
       "spat_dim": 8,
       "spat_emb_dim": 64,
 
-      "obj_emb_dim": 256
+      "obj_emb_dim": 0
     },
 
     "dialogue":
@@ -26,8 +24,16 @@
       "layer_norm" : true
     },
 
-    "reading_unit": {
-        "reading_unit_type" : "only_question"
+    "fusion": {
+        "mode" : "none",
+        "visual_dialogue_projection" : 0
+    },
+
+    "scoring_object" :
+    {
+      "use_scoring_mlp": false,
+      "scoring_mlp_hidden": 0,
+      "activation":"relu"
     },
 
 
@@ -57,19 +63,14 @@
         "head": {
           "spatial_location": true,
           "conv_out": 512,
-          "conv_kernel": [3,3],
+          "conv_kernel": [1,1],
 
           "attention": {
             "mode": "conv_pooling",
-            "no_attention_mlp": 256
+            "no_attention_mlp": 128
           }
         }
       }
-    },
-
-    "fusion": {
-        "mode" : "none",
-        "visual_dialogue_projection" : 256
     },
 
     "regularizer":
@@ -77,12 +78,8 @@
       "dropout_keep_prob": 0.5,
       "dropout_list" : ["word_embedding_reg", "dialogue_reg", "object_embedding_reg"],
       "batchnorm_list" : []
-    },
-
-        "scoring_object" :
-    {
-      "use_scoring_mlp": false
     }
+
 
   },
 

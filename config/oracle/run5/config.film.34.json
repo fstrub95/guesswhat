@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(+att+feedback +feedback2+max)",
+  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(+att+feedback) +bbox",
 
   "model": {
 
@@ -44,7 +44,7 @@
     "film_input":
     {
       "category": true,
-      "spatial": false,
+      "spatial": true,
       "mask": false,
 
       "reading_unit": {
@@ -56,8 +56,8 @@
         "fuse_mode" : "dot",
 
         "feedback_loop" : true,
-        "feedback_loop2" : true,
-        "img_pooling" : "max",
+        "feedback_loop2" : false,
+        "img_pooling" : "mean",
         "shared_projection" : false,
         "sum_mem" : false
       }

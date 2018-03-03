@@ -1,5 +1,5 @@
 {
-  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(+att+feedback +feedback2+max)",
+  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(+att-feedback +feedback2+max)",
 
   "model": {
 
@@ -55,7 +55,7 @@
         "shared_attention" : true,
         "fuse_mode" : "dot",
 
-        "feedback_loop" : true,
+        "feedback_loop" : false,
         "feedback_loop2" : true,
         "img_pooling" : "max",
         "shared_projection" : false,

@@ -1,5 +1,5 @@
 {
-  "name" : "Guesser (no cell) : object (proj:256), FiLM (head:512 [3*3]), Pooling (conv:256), fusion (proj:256), score (sum), cell(none)",
+  "name" : "Guesser (no cell) : object (proj:0), FiLM (head:256 [3*3]), Pooling (conv:128), fusion (proj:0), score (sum), cell(none)",
   "model": {
 
     "type" : "guesser2",
@@ -12,7 +12,7 @@
       "spat_dim": 8,
       "spat_emb_dim": 64,
 
-      "obj_emb_dim": 256
+      "obj_emb_dim": 0
     },
 
     "dialogue":
@@ -56,12 +56,12 @@
 
         "head": {
           "spatial_location": true,
-          "conv_out": 512,
+          "conv_out": 256,
           "conv_kernel": [3,3],
 
           "attention": {
             "mode": "conv_pooling",
-            "no_attention_mlp": 256
+            "no_attention_mlp": 128
           }
         }
       }
@@ -69,7 +69,7 @@
 
     "fusion": {
         "mode" : "none",
-        "visual_dialogue_projection" : 256
+        "visual_dialogue_projection" : 0
     },
 
     "regularizer":

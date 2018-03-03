@@ -1,10 +1,10 @@
 {
-  "name" : "FiLM (cell): +FiLM, +attention + basic +cell(+att+feedback +feedback2+max)",
+  "name" : "FiLM (no cell): classif[-question-obj], FiLM[+question+obj] +question +attention",
 
   "model": {
 
     "type" : "film",
-    "split_question" : false,
+    "split_question" : true,
 
     "inputs": {
       "crop": true,
@@ -48,18 +48,7 @@
       "mask": false,
 
       "reading_unit": {
-        "reading_unit_type" : "basic",
-
-        "use_attention" : true,
-        "attention_units" : 0,
-        "shared_attention" : true,
-        "fuse_mode" : "dot",
-
-        "feedback_loop" : true,
-        "feedback_loop2" : true,
-        "img_pooling" : "max",
-        "shared_projection" : false,
-        "sum_mem" : false
+        "reading_unit_type" : "only_question"
       }
 
     },
@@ -108,8 +97,9 @@
       "head" : {
         "spatial_location" : true,
         "mask" : true,
-        "conv_out": 512,
+        "conv_out": 1024,
         "conv_kernel": [1,1],
+        "no_mlp_units": 1024,
 
         "attention" : {
           "mode": "glimpse",
