@@ -37,6 +37,31 @@ class OracleListener(EvaluatorListener):
         return self.results
 
 
+import tensorflow as tf
+
+class ProfilerListener(EvaluatorListener):
+    def __init__(self, pctx):
+
+        self.pctx = pctx
+
+        builder = tf.profiler.ProfileOptionBuilder
+        self.opts = builder(builder.time_and_memory()).order_by('micros').build()
+
+        super(ProfilerListener, self).__init__(require=tf.no_op())
+
+    def before_batch(self, result, batch, is_training):
+
+        self.pctx.trace_next_step()
+        # Dump the profile to '/tmp/train_dir' after the step.
+        self.pctx.dump_next_step()
+
+    def after_epoch(self, is_training):
+        self.pctx.profiler.profile_operations(options=self.opts)
+
+
+
+
+
 class QGenListener(EvaluatorListener):
     def __init__(self, require):
         super(QGenListener, self).__init__(require)
